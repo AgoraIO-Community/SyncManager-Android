@@ -1,0 +1,9 @@
+<resources>
+    <string name="app_name">SyncManagerExample</string>
+
+<!--    MainActivity-->
+    <string name="text_join">加入</string>
+    <string name="hint_channel">请输入频道1名称</string>
+    <string name="hint_channel1">请输入频道2名称</string>
+    <string name="hint_user">请输入用户姓名</string>
+</resources>
