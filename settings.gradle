@@ -1,0 +1,3 @@
+rootProject.name = "SyncManagerExample"
+include ':app'
+include ':rtmSyncManager'
