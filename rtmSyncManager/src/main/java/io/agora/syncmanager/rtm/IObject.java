@@ -3,12 +3,20 @@ package io.agora.syncmanager.rtm;
 import androidx.annotation.NonNull;
 
 /**
- * @author chenhengfei(Aslanchen)
- * @date 2021/5/25
+ * SyncManager General Transfer Object Interface
  */
 public interface IObject {
 
+    /**
+     * Deserialize IObject into the business object.
+     * @param valueType
+     * @param <T>
+     * @return
+     */
     <T> T toObject(@NonNull Class<T> valueType);
 
+    /**
+     * @return the key of IObject.
+     */
     String getId();
 }

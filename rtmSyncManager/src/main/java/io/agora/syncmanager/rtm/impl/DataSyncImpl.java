@@ -440,10 +440,6 @@ public class DataSyncImpl implements ISyncManager {
                 @Override
                 public void onSuccess(Void unused) {
                     IObject item = new Attribute(key, json);
-                    Sync.EventListener listener = eventListeners.get(channel);
-                    if(listener !=null){
-                        listener.onUpdated(item);
-                    }
                     if(callback!=null) callback.onSuccess(item);
                 }
 
@@ -650,53 +646,46 @@ public class DataSyncImpl implements ISyncManager {
             }
             else if(eventListeners.containsKey(channelName)){
                 Sync.EventListener callback = eventListeners.get(channelName);
-                if(majorChannels.containsKey(channelName)){
+                if(cachedAttrs.containsKey(channelName)){
+                    List<RtmChannelAttribute> cache = cachedAttrs.get(channelName);
+                    List<IObject> onlyA = new ArrayList<>();
+                    List<IObject> onlyB = new ArrayList<>();
+                    List<IObject> both = new ArrayList<>();
+                    Map<String, RtmChannelAttribute> temp = new HashMap<>();
+                    assert cache != null;
+                    for(RtmChannelAttribute item : cache){
+                        temp.put(item.getKey(), item);
+                    }
+                    for(RtmChannelAttribute b : list){
+                        if(temp.containsKey(b.getKey())){
+                            if(!b.getValue().equals(temp.get(b.getKey()).getValue())){
+                                both.add(new Attribute(b.getKey(), b.getValue()));
+                            }
+                            temp.remove(b.getKey());
+                        }
+                        else {
+                            onlyB.add(new Attribute(b.getKey(), b.getValue()));
+                        }
+                    }
+                    for(RtmChannelAttribute i : temp.values()){
+                        onlyA.add(new Attribute(i.getKey(), i.getValue()));
+                    }
+                    for(IObject i : both){
+                        callback.onUpdated(i);
+                    }
+                    for(IObject i : onlyB){
+                        callback.onCreated(i);
+                    }
+                    for(IObject i : onlyA){
+                        callback.onDeleted(i);
+                    }
+                    cachedAttrs.put(channelName, list);
+                }
+                else {
+                    // 这里是scene property 的回调
                     RtmChannelAttribute rtmChannelAttribute = list.get(0);
                     assert callback != null;
                     callback.onUpdated(new Attribute(rtmChannelAttribute.getKey(), rtmChannelAttribute.getValue()));
-                }
-                else {
-                    if(cachedAttrs.containsKey(channelName)){
-                        List<RtmChannelAttribute> cache = cachedAttrs.get(channelName);
-                        List<IObject> onlyA = new ArrayList<>();
-                        List<IObject> onlyB = new ArrayList<>();
-                        List<IObject> both = new ArrayList<>();
-                        Map<String, RtmChannelAttribute> temp = new HashMap<>();
-                        assert cache != null;
-                        for(RtmChannelAttribute item : cache){
-                            temp.put(item.getKey(), item);
-                        }
-                        for(RtmChannelAttribute b : list){
-                            if(temp.containsKey(b.getKey())){
-                                if(!b.getValue().equals(temp.get(b.getKey()).getValue())){
-                                    both.add(new Attribute(b.getKey(), b.getValue()));
-                                }
-                                temp.remove(b.getKey());
-                            }
-                            else {
-                                onlyB.add(new Attribute(b.getKey(), b.getValue()));
-                            }
-                        }
-                        for(RtmChannelAttribute i : temp.values()){
-                            onlyA.add(new Attribute(i.getKey(), i.getValue()));
-                        }
-                        for(IObject i : both){
-                            callback.onUpdated(i);
-                        }
-                        for(IObject i : onlyB){
-                            callback.onCreated(i);
-                        }
-                        for(IObject i : onlyA){
-                            callback.onDeleted(i);
-                        }
-                        cachedAttrs.put(channelName, list);
-                    }
-                    else {
-                        // 这里是scene property 的回调
-                        RtmChannelAttribute rtmChannelAttribute = list.get(0);
-                        assert callback != null;
-                        callback.onUpdated(new Attribute(rtmChannelAttribute.getKey(), rtmChannelAttribute.getValue()));
-                    }
                 }
             }
 
