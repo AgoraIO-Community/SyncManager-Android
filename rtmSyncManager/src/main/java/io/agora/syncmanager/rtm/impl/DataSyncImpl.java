@@ -429,7 +429,7 @@ public class DataSyncImpl implements ISyncManager {
             String majorChannel = reference.getParent();
             String channel = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
             RtmChannelAttribute attribute = new RtmChannelAttribute();
-            attribute.setKey(key);
+            attribute.setKey(channel);
             String json = gson.toJson(data);
             attribute.setValue(json);
             ChannelAttributeOptions options = new ChannelAttributeOptions();
