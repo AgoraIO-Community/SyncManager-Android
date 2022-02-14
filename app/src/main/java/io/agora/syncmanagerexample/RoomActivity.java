@@ -147,7 +147,7 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
         if(sceneRef == null){
             return;
         }
-        sceneRef.collection(MEMBER).document(userid).delete(new Sync.Callback() {
+        sceneRef.collection(MEMBER).delete(userid, new Sync.Callback() {
             @Override
             public void onSuccess() {
                 Log.i(TAG, "on delete member Success");

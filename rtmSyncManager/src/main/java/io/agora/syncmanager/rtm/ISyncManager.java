@@ -24,9 +24,13 @@ public interface ISyncManager {
 
     void delete(CollectionReference reference, Sync.Callback callback);
 
+    void delete(CollectionReference reference, String id, Sync.Callback callback);
+
     void update(DocumentReference reference, String key, Object data, Sync.DataItemCallback callback);
 
     void update(DocumentReference reference, HashMap<String, Object> data, Sync.DataItemCallback callback);
+
+    void update(CollectionReference reference, String id, Object data, Sync.Callback callback);
 
     void subscribe(DocumentReference reference, Sync.EventListener listener);
 

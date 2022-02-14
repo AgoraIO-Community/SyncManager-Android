@@ -424,6 +424,56 @@ public class DataSyncImpl implements ISyncManager {
     }
 
     @Override
+    public void delete(CollectionReference reference, String id, Sync.Callback callback) {
+        if (this.majorChannels.containsKey(reference.getParent())) {
+            String majorChannel = reference.getParent();
+            String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
+            List<String> list = new ArrayList<>();
+            list.add(id);
+            ChannelAttributeOptions options = new ChannelAttributeOptions();
+            options.setEnableNotificationToChannelMembers(true);
+            client.deleteChannelAttributesByKeys(channel, list, options, new ResultCallback<Void>() {
+                @Override
+                public void onSuccess(Void unused) {
+                    callback.onSuccess();
+                }
+
+                @Override
+                public void onFailure(ErrorInfo errorInfo) {
+                    callback.onFail(new SyncManagerException(-1, "delete collection element failed!"));
+                }
+            });
+        }
+    }
+
+    @Override
+    public void update(CollectionReference reference, String id, Object data, Sync.Callback callback) {
+        if (this.majorChannels.containsKey(reference.getParent())) {
+            String majorChannel = reference.getParent();
+            String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
+            RtmChannelAttribute attribute = new RtmChannelAttribute();
+            attribute.setKey(channel);
+            String json = gson.toJson(data);
+            attribute.setValue(json);
+            ChannelAttributeOptions options = new ChannelAttributeOptions();
+            options.setEnableNotificationToChannelMembers(true);
+            List<RtmChannelAttribute> list = new ArrayList<>();
+            list.add(attribute);
+            client.addOrUpdateChannelAttributes(channel, list, options, new ResultCallback<Void>() {
+                @Override
+                public void onSuccess(Void unused) {
+                    callback.onSuccess();
+                }
+
+                @Override
+                public void onFailure(ErrorInfo errorInfo) {
+                    callback.onFail(new SyncManagerException(-1, "update collection element failed!"));
+                }
+            });
+        }
+    }
+
+    @Override
     public void update(DocumentReference reference, String key, Object data, Sync.DataItemCallback callback) {
         if (this.majorChannels.containsKey(reference.getParent())) {
             String majorChannel = reference.getParent();

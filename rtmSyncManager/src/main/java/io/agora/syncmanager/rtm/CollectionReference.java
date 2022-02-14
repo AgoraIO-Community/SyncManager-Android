@@ -84,6 +84,24 @@ public class CollectionReference {
     }
 
     /**
+     * delete the element from collection by id.
+     * @param id fetch from callback when add the element into collection.
+     * @param callback callback for notifying handle result.
+     */
+    public void delete(String id, Sync.Callback callback) {
+        manager.delete(this, id, callback);
+    }
+
+    /**
+     * update the element from collection by id.
+     * @param id fetch from callback when add the element into collection.
+     * @param callback callback for notifying handle result.
+     */
+    public void update(String id, Object data, Sync.Callback callback) {
+        manager.update(this, id, data, callback);
+    }
+
+    /**
      * subscribe the collection changes.
      * When subscribe succeed, any changes (add/update/delete) will reflected by a callback.
      * @param listener

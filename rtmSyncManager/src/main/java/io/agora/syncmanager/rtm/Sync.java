@@ -85,10 +85,4 @@ public final class Sync {
 
         void onFail(SyncManagerException exception);
     }
-//    public static  interface SyncCallback<T>{
-//        void onSuccess(T resData);
-//
-//        void onFail(SyncManagerException exception);
-//
-//    }
 }
