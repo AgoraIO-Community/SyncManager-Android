@@ -67,6 +67,10 @@ public class CollectionReference {
         manager.add(this, datas, callback);
     }
 
+    public void add(Object datas, Sync.DataItemCallback callback) {
+        manager.add(this, datas, callback);
+    }
+
     /**
      * Fetch the whole collection list.
      * @param callback Async callback for collection data.

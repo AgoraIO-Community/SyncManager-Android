@@ -20,6 +20,8 @@ public interface ISyncManager {
 
     void add(CollectionReference reference, HashMap<String, Object> data, Sync.DataItemCallback callback);
 
+    void add(CollectionReference reference, Object data, Sync.DataItemCallback callback);
+
     void delete(DocumentReference reference, Sync.Callback callback);
 
     void delete(CollectionReference reference, Sync.Callback callback);

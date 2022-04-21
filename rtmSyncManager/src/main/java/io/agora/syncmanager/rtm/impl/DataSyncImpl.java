@@ -1,5 +1,7 @@
 package io.agora.syncmanager.rtm.impl;
 
+import static android.content.ContentValues.TAG;
+
 import android.content.Context;
 import android.util.Log;
 
@@ -31,16 +33,14 @@ import io.agora.rtm.RtmFileMessage;
 import io.agora.rtm.RtmImageMessage;
 import io.agora.rtm.RtmMediaOperationProgress;
 import io.agora.rtm.RtmMessage;
-import io.agora.syncmanager.rtm.SceneReference;
-import io.agora.syncmanager.rtm.SyncManagerException;
-import io.agora.syncmanager.rtm.IObject;
-import io.agora.syncmanager.rtm.Scene;
 import io.agora.syncmanager.rtm.CollectionReference;
 import io.agora.syncmanager.rtm.DocumentReference;
+import io.agora.syncmanager.rtm.IObject;
 import io.agora.syncmanager.rtm.ISyncManager;
+import io.agora.syncmanager.rtm.Scene;
+import io.agora.syncmanager.rtm.SceneReference;
 import io.agora.syncmanager.rtm.Sync;
-
-import static android.content.ContentValues.TAG;
+import io.agora.syncmanager.rtm.SyncManagerException;
 
 public class DataSyncImpl implements ISyncManager {
 
@@ -304,6 +304,11 @@ public class DataSyncImpl implements ISyncManager {
 
     @Override
     public void add(CollectionReference reference, HashMap<String, Object> data, Sync.DataItemCallback callback) {
+        add(reference, (Object) data, callback);
+    }
+
+    @Override
+    public void add(CollectionReference reference, Object data, Sync.DataItemCallback callback) {
         if (this.majorChannels.containsKey(reference.getParent())) {
             String majorChannel = reference.getParent();
             String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
@@ -333,7 +338,7 @@ public class DataSyncImpl implements ISyncManager {
                         rtmChannelAttributes.add(attribute);
                         cachedAttrs.put(channel, rtmChannelAttributes);
                     }
-                    IObject item = new Attribute(reference.getKey(), json);
+                    IObject item = new Attribute(attribute.getKey(), json);
                     Sync.EventListener listener = eventListeners.get(channel);
                     if(listener !=null){
                         listener.onCreated(item);
@@ -462,7 +467,9 @@ public class DataSyncImpl implements ISyncManager {
             client.addOrUpdateChannelAttributes(channel, list, options, new ResultCallback<Void>() {
                 @Override
                 public void onSuccess(Void unused) {
-                    callback.onSuccess();
+                    if (callback != null) {
+                        callback.onSuccess();
+                    }
                 }
 
                 @Override
