@@ -48,6 +48,7 @@ public class DataSyncImpl implements ISyncManager {
     private String token;
     private static final String APP_ID = "appid";
     private static final String TOKEN = "token";
+    private static final String UID = "uid";
     private static final String DEFAULT_CHANNEL_NAME_PARAM = "defaultChannel";
     private String mDefaultChannel;
     private RtmClient client;
@@ -88,7 +89,7 @@ public class DataSyncImpl implements ISyncManager {
             assert mDefaultChannel != null;
             client = RtmClient.createInstance(context, appId, iEventListener);
             client.setLogFile(new File(context.getExternalCacheDir(), "agorartm.log").getAbsolutePath());
-            uid = uuid();
+            uid = params.containsKey(UID) ? params.get(UID) : uuid();
             client.login(token, uid, new ResultCallback<Void>() {
                 @Override
                 public void onSuccess(Void unused) {
