@@ -1,5 +1,7 @@
 package io.agora.syncmanagerexample;
 
+import static android.content.ContentValues.TAG;
+
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -14,14 +16,12 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 
-import io.agora.syncmanager.rtm.SyncManagerException;
 import io.agora.syncmanager.rtm.IObject;
 import io.agora.syncmanager.rtm.Scene;
 import io.agora.syncmanager.rtm.SceneReference;
 import io.agora.syncmanager.rtm.Sync;
+import io.agora.syncmanager.rtm.SyncManagerException;
 import io.agora.syncmanagerexample.databinding.ActivityRoomBinding;
-
-import static android.content.ContentValues.TAG;
 
 public class RoomActivity extends AppCompatActivity implements CompoundButton.OnCheckedChangeListener {
 
@@ -248,7 +248,7 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
         @Override
         public void onUpdated(IObject item) {
             Log.i(TAG, "on room property Created: " + item.getId());
-            if (item.getId().equals("layout")) {
+            if (item.getId().contains("layout")) {
                 isGridLayout = item.toObject(String.class).equals("grid");
                 handler.post(() -> mBinding.switchLayout.setChecked(isGridLayout));
             }
