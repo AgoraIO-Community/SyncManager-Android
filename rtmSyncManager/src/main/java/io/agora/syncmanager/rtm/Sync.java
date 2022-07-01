@@ -2,13 +2,12 @@ package io.agora.syncmanager.rtm;
 
 import android.content.Context;
 
-
 import java.util.List;
 import java.util.Map;
 
 import io.agora.common.annotation.NonNull;
 import io.agora.common.annotation.Nullable;
-import io.agora.syncmanager.rtm.impl.DataSyncImpl;
+import io.agora.syncmanager.rtm.impl.SocketSyncImpl;
 
 /**
  * 房间状态同步
@@ -33,7 +32,7 @@ public final class Sync {
     private ISyncManager mISyncManager;
 
     public void init(Context context, Map<String, String> params, Callback callback) {
-        mISyncManager = new DataSyncImpl(context, params, callback);
+        mISyncManager = new SocketSyncImpl(context, params, callback);
     }
 
     public void destroy(){

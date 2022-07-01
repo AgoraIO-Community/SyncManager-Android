@@ -42,7 +42,7 @@ import io.agora.syncmanager.rtm.SceneReference;
 import io.agora.syncmanager.rtm.Sync;
 import io.agora.syncmanager.rtm.SyncManagerException;
 
-public class DataSyncImpl implements ISyncManager {
+public class RtmSyncImpl implements ISyncManager {
 
     private String appId;
     private String token;
@@ -80,7 +80,7 @@ public class DataSyncImpl implements ISyncManager {
         return null;
     }
 
-    public DataSyncImpl(Context context, Map<String, String> params, Sync.Callback callback) {
+    public RtmSyncImpl(Context context, Map<String, String> params, Sync.Callback callback) {
         try {
             appId = params.get(APP_ID);
             token = params.get(TOKEN);
@@ -179,7 +179,7 @@ public class DataSyncImpl implements ISyncManager {
             public void onSuccess(Void unused) {
                 majorChannels.put(sceneId, rtmChannel);
                 channelListeners.put(sceneId, listener);
-                if(callback!=null) callback.onSuccess(new SceneReference(DataSyncImpl.this, sceneId, sceneId));
+                if(callback!=null) callback.onSuccess(new SceneReference(RtmSyncImpl.this, sceneId, sceneId));
             }
 
             @Override
