@@ -295,7 +295,7 @@ public class SocketSyncImpl implements ISyncManager {
                 // remove the scene itself, remove it from scene list
                 List<String> list = new ArrayList<>();
                 list.add(majorChannel);
-                int ret = client.deleteProp(mDefaultChannel, list);
+                int ret = client.deleteProps(mDefaultChannel, list);
                 if(ret == 0){
                     if(callback!=null) callback.onSuccess();
                 }else{
@@ -314,7 +314,7 @@ public class SocketSyncImpl implements ISyncManager {
                             list.add(item.key);
                         }
                     }
-                    int ret = client.deleteProp(channel, list);
+                    int ret = client.deleteProps(channel, list);
                     if(ret == 0){
                         List<SocketClient.SocketAttribute> rtmChannelAttributes = cachedAttrs.get(channel);
                         if(rtmChannelAttributes != null){
@@ -352,7 +352,7 @@ public class SocketSyncImpl implements ISyncManager {
             String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
             List<String> list = new ArrayList<>();
             list.add(id);
-            int ret = client.deleteProp(channel, list);
+            int ret = client.deleteProps(channel, list);
             if(ret == 0){
                 callback.onSuccess();
             }else{

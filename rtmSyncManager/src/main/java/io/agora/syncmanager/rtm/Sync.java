@@ -7,6 +7,7 @@ import java.util.Map;
 
 import io.agora.common.annotation.NonNull;
 import io.agora.common.annotation.Nullable;
+import io.agora.syncmanager.rtm.impl.RtmSyncImpl;
 import io.agora.syncmanager.rtm.impl.SocketSyncImpl;
 
 /**
@@ -15,6 +16,7 @@ import io.agora.syncmanager.rtm.impl.SocketSyncImpl;
 public final class Sync {
 
     private volatile static Sync instance;
+    private static final String PARAM_IS_USE_RTM = "isUseRtm";
 
     private Sync() {
     }
@@ -32,7 +34,12 @@ public final class Sync {
     private ISyncManager mISyncManager;
 
     public void init(Context context, Map<String, String> params, Callback callback) {
-        mISyncManager = new SocketSyncImpl(context, params, callback);
+        String isUseRtm = params.get(PARAM_IS_USE_RTM);
+        if("true".equals(isUseRtm)){
+            mISyncManager = new RtmSyncImpl(context, params, callback);
+        }else{
+            mISyncManager = new SocketSyncImpl(context, params, callback);
+        }
     }
 
     public void destroy(){
