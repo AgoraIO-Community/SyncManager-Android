@@ -24,36 +24,42 @@ public class SocketClient {
     private static final String TAG = "SocketClient";
     private static final String SOCKET_MSG_URL = "ws://114.236.137.88:8199/ws";
     private static final String SOCKET_SUBSCRIBE_URL = "ws://114.236.137.88:8199/ws/subscribe";
+    private static final String SOCKET_QUERY_URL = "ws://114.236.137.88:8199/ws/query";
+    private static final String SOCKET_DELETE_URL = "ws://114.236.137.88:8199/ws/props/delete";
 
     private final String appId;
 
-    private WebSocketClient mMsgClient;
+    private WebSocketClient mBasicClient;
     private final Map<String, WebSocketClient> mSubscribeClients = new HashMap<>();
     private final Map<String, List<Runnable>> mSubscribePendingRun = new HashMap<>();
-    private final ResultListener<String> mMsgListener = this::parseMsgString;
-    private final ResultListener<String> mSubscribeListener = this::parseSubscribeString;
-
     private final Map<String, ResultListListener<SocketAttribute>> attributeListenerMap = new HashMap<>();
+    private final ResultListener<String> mSubscribeListener = msg -> {
+        ArrayList<SocketAttribute> outList = new ArrayList<>();
+        String channel = parseAttributes(msg, outList);
+        if(!TextUtils.isEmpty(channel)){
+            ResultListListener<SocketAttribute> listener = attributeListenerMap.get(channel);
+            if(listener != null){
+                listener.onResult(outList);
+            }
+        }
+    };
+
 
     SocketClient(String appId) {
         this.appId = appId;
     }
 
     void connect(ResultListener<WebSocketClient> onOpen, ResultListener<String> onClose, ResultListener<Exception> onError) {
-        mMsgClient = connectWebSocket(
+        mBasicClient = connectWebSocket(
                 SOCKET_MSG_URL,
                 onOpen,
-                mMsgListener,
+                null,null,
                 onClose,
                 onError
         );
     }
 
     void close() {
-        if (mMsgClient != null) {
-            mMsgClient.close();
-            mMsgClient = null;
-        }
         Set<String> keySet = mSubscribeClients.keySet();
         for (String key : keySet) {
             WebSocketClient client = mSubscribeClients.get(key);
@@ -64,37 +70,71 @@ public class SocketClient {
         }
         mSubscribeClients.clear();
         mSubscribePendingRun.clear();
+        if (mBasicClient != null) {
+            mBasicClient.close();
+            mBasicClient = null;
+        }
     }
 
     int addOrUpdateProp(String channelName, List<SocketAttribute> attributes) {
-        if (mMsgClient != null) {
+        if (mBasicClient != null) {
             MessageBuilder mb = new MessageBuilder()
                     .setAppId(appId)
                     .setChannelName(channelName);
             if (attributes != null) {
                 for (SocketAttribute attribute : attributes) {
-                    mb.addProp(attribute.key, attribute.value);
+                    mb.addMapProp(attribute.key, attribute.value);
                 }
             }
             String msg = mb.build();
             Log.d(TAG, "addOrUpdateProp channelName=" + channelName + ", msg=" + msg);
-            mMsgClient.send(msg);
+            mBasicClient.send(msg);
             return 0;
         }
         return -1;
     }
 
-    int deleteProp(String channelName, List<String> keys) {
-        return 0;
+    int deleteProps(String channelName, List<String> keys) {
+        if (mBasicClient != null) {
+            String deleteStr = new MessageBuilder().setAppId(appId)
+                    .addListProps(keys)
+                    .setChannelName(channelName).build();
+            Log.d(TAG, "deleteProp queryStr=" + deleteStr);
+            connectWebSocket(SOCKET_DELETE_URL,
+                    client -> client.send(deleteStr),
+                    null,
+                    WebSocketClient::close,
+                    null,
+                    null);
+            return 0;
+        }
+        return -1;
     }
 
     int getProps(String channelName, ResultListListener<SocketAttribute> onResult) {
-        return 0;
+        if (mBasicClient != null) {
+            String queryStr = new MessageBuilder().setAppId(appId).setChannelName(channelName).build();
+            Log.d(TAG, "getProps queryStr=" + queryStr);
+            connectWebSocket(SOCKET_QUERY_URL,
+                    client -> client.send(queryStr),
+                    msg -> {
+                        ArrayList<SocketAttribute> outList = new ArrayList<>();
+                        String cn = parseAttributes(msg, outList);
+                        if(!TextUtils.isEmpty(cn) && channelName.equals(cn) && onResult != null){
+                            onResult.onResult(outList);
+                        }
+                    },
+                    WebSocketClient::close,
+                    null,
+                    null);
+            return 0;
+        }
+        return -1;
     }
 
 
     int subscribe(String channelName, ResultListListener<SocketAttribute> onUpdate) {
-        if (mMsgClient != null) {
+        if (mBasicClient != null) {
             String msg = new MessageBuilder()
                     .setAppId(appId)
                     .setChannelName(channelName)
@@ -103,11 +143,11 @@ public class SocketClient {
 
             final WebSocketClient client = mSubscribeClients.get(channelName);
             if (client != null) {
-                if(client.isOpen()){
+                if (client.isOpen()) {
                     client.send(msg);
-                }else{
+                } else {
                     List<Runnable> runnables = mSubscribePendingRun.get(channelName);
-                    if(runnables != null){
+                    if (runnables != null) {
                         runnables.add(new Runnable() {
                             @Override
                             public void run() {
@@ -117,7 +157,7 @@ public class SocketClient {
                     }
                 }
 
-            }else{
+            } else {
                 final ArrayList<Runnable> pendingRuns = new ArrayList<>();
                 mSubscribePendingRun.put(channelName, pendingRuns);
                 WebSocketClient nClient = connectWebSocket(SOCKET_SUBSCRIBE_URL,
@@ -128,13 +168,13 @@ public class SocketClient {
                             }
                             pendingRuns.clear();
                         },
-                        mSubscribeListener,
+                        mSubscribeListener,null,
                         closeReason -> {
                             mSubscribeClients.remove(channelName);
                         }, ex -> {
                             mSubscribeClients.remove(channelName);
                         });
-                if(nClient == null){
+                if (nClient == null) {
                     return -3;
                 }
                 mSubscribeClients.put(channelName, nClient);
@@ -148,31 +188,25 @@ public class SocketClient {
     void unSubscribe(String channelName) {
         attributeListenerMap.remove(channelName);
         WebSocketClient client = mSubscribeClients.get(channelName);
-        if(client != null){
+        if (client != null) {
             client.close();
             mSubscribeClients.remove(channelName);
         }
         mSubscribePendingRun.remove(channelName);
     }
 
-    private void parseMsgString(String str) {
-        //Log.d(TAG, "parseMsgString str=" + str);
-    }
-
-    private void parseSubscribeString(String str) {
-
+    private String parseAttributes(String str, List<SocketAttribute> outList) {
         try {
             JSONObject root = new JSONObject(str);
 
             String channelName = root.optString("channelName");
             if (TextUtils.isEmpty(channelName)) {
-                return;
+                return null;
             }
-            Log.d(TAG, "parseSubscribeString str=" + str);
+            Log.d(TAG, "parseAttributes str=" + str);
             JSONObject props = root.optJSONObject("props");
 
-            ResultListListener<SocketAttribute> listener = attributeListenerMap.get(channelName);
-            if (props != null && listener != null) {
+            if (props != null) {
                 Iterator<String> keys = props.keys();
                 List<SocketAttribute> attributes = new ArrayList<>();
                 while (keys.hasNext()) {
@@ -183,11 +217,13 @@ public class SocketClient {
                     attribute.value = value;
                     attributes.add(attribute);
                 }
-                listener.onResult(attributes);
+                outList.addAll(attributes);
             }
+            return channelName;
         } catch (JSONException e) {
             e.printStackTrace();
         }
+        return null;
     }
 
 
@@ -195,6 +231,7 @@ public class SocketClient {
             String url,
             ResultListener<WebSocketClient> onOpen,
             ResultListener<String> onMessage,
+            ResultListener<WebSocketClient> onAfterMessage,
             ResultListener<String> onClose,
             ResultListener<Exception> onError) {
         URI msgUri = null;
@@ -221,11 +258,17 @@ public class SocketClient {
                 if (onMessage != null) {
                     onMessage.onResult(message);
                 }
+                if(onAfterMessage != null){
+                    onAfterMessage.onResult(this);
+                }
             }
 
             @Override
             public void onClose(int code, String reason, boolean remote) {
                 Log.d(TAG, "connectMsgServer onClose code=" + code + ", reason=" + reason + ", remote=" + remote);
+                if (remote && mBasicClient != null) {
+                    reconnect();
+                }
                 if (onClose != null) {
                     onClose.onResult(reason);
                 }
@@ -239,7 +282,7 @@ public class SocketClient {
                 }
             }
         };
-        client.setConnectionLostTimeout(200000);
+        client.setConnectionLostTimeout(Integer.MAX_VALUE);
         client.connect();
         return client;
     }
@@ -248,7 +291,7 @@ public class SocketClient {
     private final static class MessageBuilder {
         private String appId;
         private String channelName;
-        private final Map<String, Object> props = new LinkedHashMap<String, Object>() {
+        private final Map<String, Object> propsMap = new LinkedHashMap<String, Object>() {
             @NonNull
             @Override
             public String toString() {
@@ -275,6 +318,25 @@ public class SocketClient {
                 }
             }
         };
+        private final List<String> propsList = new ArrayList<String>(){
+            @NonNull
+            @Override
+            public String toString() {
+                Iterator<String> it = iterator();
+                if (! it.hasNext())
+                    return "[]";
+
+                StringBuilder sb = new StringBuilder();
+                sb.append('[');
+                for (;;) {
+                    String e = it.next();
+                    sb.append("\"").append(e).append("\"");
+                    if (!it.hasNext())
+                        return sb.append(']').toString();
+                    sb.append(',').append(' ');
+                }
+            }
+        };
 
         public MessageBuilder setAppId(String appId) {
             this.appId = appId;
@@ -286,17 +348,33 @@ public class SocketClient {
             return this;
         }
 
-        public MessageBuilder addProp(String key, Object value) {
-            props.put(key, value);
+        public MessageBuilder addMapProp(String key, Object value) {
+            propsMap.put(key, value);
+            return this;
+        }
+
+        public MessageBuilder addListProp(String key) {
+            propsList.add(key);
+            return this;
+        }
+
+        public MessageBuilder addListProps(List<String> keys) {
+            propsList.addAll(keys);
             return this;
         }
 
         String build() {
-            return '{' +
-                    "\"appId\":\"" + appId + "\"," +
-                    "\"channelName\":\"" + channelName + "\"," +
-                    "\"props\":" + props +
-                    '}';
+            StringBuilder sb = new StringBuilder();
+            sb.append("{");
+            sb.append("\"appId\":\"").append(appId).append("\"");
+            sb.append(",\"channelName\":\"").append(channelName).append("\"");
+            if (propsMap.size() > 0) {
+                sb.append(",\"props\":").append(propsMap);
+            } else if (propsList.size() > 0) {
+                sb.append(",\"props\":").append(propsList);
+            }
+            sb.append("}");
+            return sb.toString();
         }
     }
 
