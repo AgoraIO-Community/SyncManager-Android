@@ -172,7 +172,7 @@ public class SocketSyncImpl implements ISyncManager {
                         SocketClient.SocketAttribute attribute = attributes.get(0);
                         callback.onSuccess(new Attribute(attribute.key, String.valueOf(attribute.value)));
                     } else {
-                        callback.onSuccess(null);
+                        callback.onFail(new SyncManagerException(-1, "empty attributes"));
                     }
                 }
             });
@@ -195,7 +195,7 @@ public class SocketSyncImpl implements ISyncManager {
                         SocketClient.SocketAttribute attribute = attributes.get(0);
                         callback.onSuccess(new Attribute(attribute.key, String.valueOf(attribute.value)));
                     } else {
-                        callback.onSuccess(null);
+                        callback.onFail(new SyncManagerException(-1, "empty attributes"));
                     }
                 }
             });
@@ -213,15 +213,16 @@ public class SocketSyncImpl implements ISyncManager {
             String majorChannel = reference.getParent();
             String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
             int ret = client.getProps(channel, attributes -> {
-
-                cachedAttrs.put(channel, attributes);
-                List<IObject> res = new ArrayList<>();
-                if(attributes != null){
+                if (attributes != null && attributes.size() > 0) {
+                    cachedAttrs.put(channel, attributes);
+                    List<IObject> res = new ArrayList<>();
                     for (SocketClient.SocketAttribute attribute : attributes) {
                         res.add(new Attribute(attribute.key, String.valueOf(attribute.value)));
                     }
+                    callback.onSuccess(res);
+                } else {
+                    callback.onFail(new SyncManagerException(-1, "empty attributes"));
                 }
-                callback.onSuccess(res);
             });
             if(ret != 0){
                 callback.onFail(new SyncManagerException(ret, "getProps error"));
@@ -553,7 +554,7 @@ public class SocketSyncImpl implements ISyncManager {
                     }
                     for(SocketClient.SocketAttribute b : list){
                         if(temp.containsKey(b.key)){
-                            if(!b.key.equals(temp.get(b.key).key)){
+                            if(!b.value.equals(temp.get(b.key).value)){
                                 both.add(new Attribute(b.key, String.valueOf(b.value)));
                             }
                             temp.remove(b.key);
