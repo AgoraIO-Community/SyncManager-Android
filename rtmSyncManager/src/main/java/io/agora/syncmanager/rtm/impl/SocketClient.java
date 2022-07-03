@@ -13,12 +13,12 @@ import org.json.JSONObject;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 public class SocketClient {
     private static final String TAG = "SocketClient";
@@ -30,9 +30,9 @@ public class SocketClient {
     private final String appId;
 
     private WebSocketClient mBasicClient;
-    private final Map<String, WebSocketClient> mSubscribeClients = new HashMap<>();
-    private final Map<String, List<Runnable>> mSubscribePendingRun = new HashMap<>();
-    private final Map<String, ResultListListener<SocketAttribute>> attributeListenerMap = new HashMap<>();
+    private final Map<String, WebSocketClient> mSubscribeClients = new ConcurrentHashMap<>();
+    private final Map<String, List<Runnable>> mSubscribePendingRun = new ConcurrentHashMap<>();
+    private final Map<String, ResultListListener<SocketAttribute>> attributeListenerMap = new ConcurrentHashMap<>();
     private final ResultListener<String> mSubscribeListener = msg -> {
         ArrayList<SocketAttribute> outList = new ArrayList<>();
         String channel = parseAttributes(msg, outList);
@@ -120,7 +120,7 @@ public class SocketClient {
                     msg -> {
                         ArrayList<SocketAttribute> outList = new ArrayList<>();
                         String cn = parseAttributes(msg, outList);
-                        if(!TextUtils.isEmpty(cn) && channelName.equals(cn) && onResult != null){
+                        if(onResult != null){
                             onResult.onResult(outList);
                         }
                     },
@@ -196,6 +196,9 @@ public class SocketClient {
     }
 
     private String parseAttributes(String str, List<SocketAttribute> outList) {
+        if(TextUtils.isEmpty(str) || "null".equals(str)){
+            return "";
+        }
         try {
             JSONObject root = new JSONObject(str);
 
