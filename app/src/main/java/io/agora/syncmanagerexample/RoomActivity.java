@@ -127,6 +127,12 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
                 @Override
                 public void onSuccess(List<IObject> result) {
                     Log.i(TAG, "on get member list Success: " + result.size());
+                    runOnUiThread(() -> {
+                        for (IObject iObject : result) {
+                            Member item = new Member(iObject.getId(), iObject.toString());
+                            mAdapter.add(item);
+                        }
+                    });
                 }
 
                 @Override
