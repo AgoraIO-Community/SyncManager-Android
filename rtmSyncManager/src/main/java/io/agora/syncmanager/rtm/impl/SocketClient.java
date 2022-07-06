@@ -22,10 +22,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class SocketClient {
     private static final String TAG = "SocketClient";
-    private static final String SOCKET_MSG_URL = "ws://114.236.137.88:8199/ws";
-    private static final String SOCKET_SUBSCRIBE_URL = "ws://114.236.137.88:8199/ws/subscribe";
-    private static final String SOCKET_QUERY_URL = "ws://114.236.137.88:8199/ws/query";
-    private static final String SOCKET_DELETE_URL = "ws://114.236.137.88:8199/ws/props/delete";
+    private static final String SOCKET_URL_BASE = "ws://114.236.137.88:8199";
+
+    private static final String ACTION_SEND = "send";
+    private static final String ACTION_QUERY = "query";
+    private static final String ACTION_DELETE = "delete";
+    private static final String ACTION_SUBSCRIBE = "subscribe";
+
 
     private final String appId;
 
@@ -51,7 +54,7 @@ public class SocketClient {
 
     void connect(ResultListener<WebSocketClient> onOpen, ResultListener<String> onClose, ResultListener<Exception> onError) {
         mBasicClient = connectWebSocket(
-                SOCKET_MSG_URL,
+                SOCKET_URL_BASE,
                 onOpen,
                 null,null,
                 onClose,
@@ -79,6 +82,7 @@ public class SocketClient {
     int addOrUpdateProp(String channelName, List<SocketAttribute> attributes) {
         if (mBasicClient != null) {
             MessageBuilder mb = new MessageBuilder()
+                    .setAction(ACTION_SEND)
                     .setAppId(appId)
                     .setChannelName(channelName);
             if (attributes != null) {
@@ -97,10 +101,11 @@ public class SocketClient {
     int deleteProps(String channelName, List<String> keys) {
         if (mBasicClient != null) {
             String deleteStr = new MessageBuilder().setAppId(appId)
+                    .setAction(ACTION_DELETE)
                     .addListProps(keys)
                     .setChannelName(channelName).build();
             Log.d(TAG, "deleteProp queryStr=" + deleteStr);
-            connectWebSocket(SOCKET_DELETE_URL,
+            connectWebSocket(SOCKET_URL_BASE,
                     client -> client.send(deleteStr),
                     null,
                     WebSocketClient::close,
@@ -113,9 +118,9 @@ public class SocketClient {
 
     int getProps(String channelName, ResultListListener<SocketAttribute> onResult) {
         if (mBasicClient != null) {
-            String queryStr = new MessageBuilder().setAppId(appId).setChannelName(channelName).build();
+            String queryStr = new MessageBuilder().setAction(ACTION_QUERY).setAppId(appId).setChannelName(channelName).build();
             Log.d(TAG, "getProps queryStr=" + queryStr);
-            connectWebSocket(SOCKET_QUERY_URL,
+            connectWebSocket(SOCKET_URL_BASE,
                     client -> client.send(queryStr),
                     msg -> {
                         ArrayList<SocketAttribute> outList = new ArrayList<>();
@@ -136,6 +141,7 @@ public class SocketClient {
     int subscribe(String channelName, ResultListListener<SocketAttribute> onUpdate) {
         if (mBasicClient != null) {
             String msg = new MessageBuilder()
+                    .setAction(ACTION_SUBSCRIBE)
                     .setAppId(appId)
                     .setChannelName(channelName)
                     .build();
@@ -160,7 +166,7 @@ public class SocketClient {
             } else {
                 final ArrayList<Runnable> pendingRuns = new ArrayList<>();
                 mSubscribePendingRun.put(channelName, pendingRuns);
-                WebSocketClient nClient = connectWebSocket(SOCKET_SUBSCRIBE_URL,
+                WebSocketClient nClient = connectWebSocket(SOCKET_URL_BASE,
                         socket -> {
                             socket.send(msg);
                             for (Runnable pendingRun : pendingRuns) {
@@ -293,6 +299,7 @@ public class SocketClient {
 
     private final static class MessageBuilder {
         private String appId;
+        private String action;
         private String channelName;
         private final Map<String, Object> propsMap = new LinkedHashMap<String, Object>() {
             @NonNull
@@ -341,6 +348,11 @@ public class SocketClient {
             }
         };
 
+        public MessageBuilder setAction(String action){
+            this.action = action;
+            return this;
+        }
+
         public MessageBuilder setAppId(String appId) {
             this.appId = appId;
             return this;
@@ -369,6 +381,7 @@ public class SocketClient {
         String build() {
             StringBuilder sb = new StringBuilder();
             sb.append("{");
+            sb.append("\"action\":\"").append(action).append("\"");
             sb.append("\"appId\":\"").append(appId).append("\"");
             sb.append(",\"channelName\":\"").append(channelName).append("\"");
             if (propsMap.size() > 0) {
