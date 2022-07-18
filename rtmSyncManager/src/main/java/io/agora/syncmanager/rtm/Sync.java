@@ -7,8 +7,8 @@ import java.util.Map;
 
 import io.agora.common.annotation.NonNull;
 import io.agora.common.annotation.Nullable;
+import io.agora.syncmanager.rtm.impl.RethinkSyncImpl;
 import io.agora.syncmanager.rtm.impl.RtmSyncImpl;
-import io.agora.syncmanager.rtm.impl.SocketSyncImpl;
 
 /**
  * 房间状态同步
@@ -35,10 +35,10 @@ public final class Sync {
 
     public void init(Context context, Map<String, String> params, Callback callback) {
         String isUseRtm = params.get(PARAM_IS_USE_RTM);
-        if("true".equals(isUseRtm)){
+        if ("true".equals(isUseRtm)) {
             mISyncManager = new RtmSyncImpl(context, params, callback);
-        }else{
-            mISyncManager = new SocketSyncImpl(context, params, callback);
+        } else {
+            mISyncManager = new RethinkSyncImpl(context, params, callback);
         }
     }
 
