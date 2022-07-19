@@ -24,7 +24,7 @@ public class MainActivity extends AppCompatActivity implements View.OnClickListe
 
     private void initView() {
         mBinding.btnJoinAttMain.setOnClickListener(this);
-        mBinding.inputChannelAttMain.setText(Editable.Factory.getInstance().newEditable("DemoChannel1"));
+        mBinding.inputChannelAttMain.setText(Editable.Factory.getInstance().newEditable("sceneId"));
         mBinding.inputUserAttMain.setText(Editable.Factory.getInstance().newEditable("DemoUser001"));
     }
 
