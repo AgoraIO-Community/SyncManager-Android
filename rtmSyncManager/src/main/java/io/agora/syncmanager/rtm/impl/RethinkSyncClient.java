@@ -184,8 +184,24 @@ public class RethinkSyncClient {
                     @Override
                     boolean handleAttrs(SocketType type, JSONObject data, List<Attribute> attributes) {
                         if (type == SocketType.send) {
-                            if (onUpdate != null) {
-                                onUpdate.onCallback(attributes);
+                            String propsUpdate = data.optString("propsUpdate");
+                            if(!TextUtils.isEmpty(propsUpdate) && onUpdate != null){
+                                try {
+                                    JSONObject jsonObject = new JSONObject(propsUpdate);
+                                    List<Attribute> ret = new ArrayList<>(attributes);
+
+                                    JSONArray names = jsonObject.names();
+                                    if(names != null){
+                                        for (int i = 0; i < names.length(); i++) {
+                                            String key = names.optString(i);
+                                            String value = jsonObject.optString(key);
+                                            ret.add(new Attribute(key, value));
+                                        }
+                                    }
+                                    onUpdate.onCallback(ret);
+                                } catch (JSONException e) {
+                                    handleResult(ERROR_JSON_PARSE, "propsUpdate parse error");
+                                }
                             }
                         } else if (type == SocketType.deleteProp) {
                             JSONArray propsDel = data.optJSONArray("propsDel");
@@ -300,7 +316,7 @@ public class RethinkSyncClient {
                     dealSocketMessage(message);
                 } catch (JSONException e) {
                     if (complete != null) {
-                        complete.onCallback(-4);
+                        complete.onCallback(ERROR_JSON_PARSE);
                     }
                 }
             }
@@ -309,9 +325,7 @@ public class RethinkSyncClient {
             public void onClose(int code, String reason, boolean remote) {
                 stopHeartTimer();
                 if (code == CloseFrame.ABNORMAL_CLOSE) {
-                    if (complete != null) {
-                        complete.onCallback(-3);
-                    }
+                    RethinkSyncClient.this.connect(complete);
                 }
             }
 
