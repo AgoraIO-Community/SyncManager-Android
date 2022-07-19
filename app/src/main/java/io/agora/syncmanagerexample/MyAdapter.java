@@ -63,6 +63,9 @@ public class MyAdapter extends BaseAdapter {
         if (mData == null) {
             mData = new LinkedList<>();
         }
+        if(mData.contains(member)){
+            return;
+        }
         mData.add(member);
         notifyDataSetChanged();
     }

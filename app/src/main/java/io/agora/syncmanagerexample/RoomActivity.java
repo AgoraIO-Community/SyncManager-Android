@@ -30,6 +30,7 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
     private Handler handler = new Handler(Looper.getMainLooper());
     private String channel;
     private String userid;
+    private String userObjectId;
     private Boolean isGridLayout;
     private SceneReference sceneRef;
     private static final String MEMBER = "member";
@@ -115,6 +116,7 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
                 @Override
                 public void onSuccess(IObject result) {
                     Log.i(TAG, "on add member Success: " + result.getId());
+                    userObjectId = result.getId();
                 }
 
                 @Override
@@ -153,7 +155,7 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
         if(sceneRef == null){
             return;
         }
-        sceneRef.collection(MEMBER).delete(userid, new Sync.Callback() {
+        sceneRef.collection(MEMBER).delete(userObjectId, new Sync.Callback() {
             @Override
             public void onSuccess() {
                 Log.i(TAG, "on delete member Success");
@@ -199,6 +201,13 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
         @Override
         public void onUpdated(IObject item) {
             Log.i(TAG, "on member updated: " + item.getId());
+            handler.post(new Runnable() {
+                @Override
+                public void run() {
+                    Member member = new Member(item.getId(), item.toString());
+                    mAdapter.add(member);
+                }
+            });
         }
 
         @Override
