@@ -9,6 +9,7 @@ import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.framing.CloseFrame;
 import org.java_websocket.handshake.ServerHandshake;
 import org.java_websocket.util.NamedThreadFactory;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
@@ -84,7 +85,7 @@ public class RethinkSyncClient {
         socketMsg.put("action", SocketType.deleteProp.name());
         socketMsg.put("requestId", UUID.randomUUID().toString());
         socketMsg.put("props", objectIds);
-        if (socketClient != null) {
+        if (socketClient != null && socketClient.isOpen()) {
             String text = gson.toJson(socketMsg);
             Log.d(LOG_TAG, "WebSocketClient send message=" + text);
             socketClient.send(text);
@@ -236,15 +237,13 @@ public class RethinkSyncClient {
             if (SocketType.deleteProp.name().equals(realAction)) {
                 ICallback<IObject> cb = onDeletedCallbacks.get(channelName);
                 if (cb != null) {
-                    if (attributes.size() == 0) {
-                        cb.onCallback(new Attribute("", ""));
-                    } else {
-                        for (Attribute attribute : attributes) {
-                            cb.onCallback(attribute);
+                    JSONArray propsDel = data.optJSONArray("propsDel");
+                    if (propsDel != null && propsDel.length() > 0) {
+                        for (int i = 0; i < propsDel.length(); i++) {
+                            cb.onCallback(new Attribute(propsDel.getString(i), ""));
                         }
                     }
                 }
-
             }
         } else {
             ICallback<List<IObject>> cb = onSuccessCallbacks.get(channelName);
@@ -257,7 +256,17 @@ public class RethinkSyncClient {
             }
             ICallback<IObject> cbOjb = onSuccessCallbacksObj.get(channelName);
             if (cbOjb != null && attributes.size() > 0) {
-                cbOjb.onCallback(attributes.get(0));
+                if(cbOjb instanceof NameCallback){
+                    String objectId = ((NameCallback<IObject>) cbOjb).objectId;
+                    for (Attribute attribute : attributes) {
+                        if(objectId.equals(attribute.getId())){
+                            cbOjb.onCallback(attribute);
+                            break;
+                        }
+                    }
+                } else {
+                    cbOjb.onCallback(attributes.get(0));
+                }
             }
         }
     }
@@ -273,7 +282,7 @@ public class RethinkSyncClient {
         String propsId = objectId;
         String propsValues = "";
 
-        if(params != null){
+        if (params != null) {
             try {
                 Map<String, Object> propsValuesMap = new HashMap<>();
                 JSONObject jo = new JSONObject(gson.toJson(params));
@@ -301,7 +310,7 @@ public class RethinkSyncClient {
                     propsValues = (String) params;
                 } else {
                     ICallback<SyncManagerException> cb = onFailCallbacks.get(channelName);
-                    if(cb != null){
+                    if (cb != null) {
                         cb.onCallback(new SyncManagerException(-999, "Json parse error, params=" + params.toString()));
                     }
                     return;
@@ -319,6 +328,11 @@ public class RethinkSyncClient {
             Map<String, Object> props = new HashMap<>();
             props.put(propsId, propsValues);
             socketMsg.put("props", props);
+
+            ICallback<IObject> cb = onSuccessCallbacksObj.get(channelName);
+            if(cb instanceof NameCallback){
+                ((NameCallback<IObject>) cb).objectId = propsId;
+            }
         }
 
         // remove subscribe data
@@ -336,7 +350,7 @@ public class RethinkSyncClient {
             }
         }
 
-        if (socketClient != null) {
+        if (socketClient != null && socketClient.isOpen()) {
             String text = gson.toJson(socketMsg);
             Log.d(LOG_TAG, "WebSocketClient send message=" + text);
             socketClient.send(text);
@@ -410,6 +424,10 @@ public class RethinkSyncClient {
 
     interface ICallback<T> {
         void onCallback(T ret);
+    }
+
+    abstract static class NameCallback<T> implements ICallback<T>{
+        private String objectId;
     }
 
     enum SocketType {
