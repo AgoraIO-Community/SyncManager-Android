@@ -13,6 +13,7 @@ import java.util.Map;
 
 import io.agora.syncmanager.rtm.CollectionReference;
 import io.agora.syncmanager.rtm.DocumentReference;
+import io.agora.syncmanager.rtm.IObject;
 import io.agora.syncmanager.rtm.ISyncManager;
 import io.agora.syncmanager.rtm.Scene;
 import io.agora.syncmanager.rtm.SceneReference;
@@ -117,7 +118,12 @@ public class RethinkSyncImpl implements ISyncManager {
     public void add(CollectionReference reference, Object data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
         String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.onSuccessCallbacksObj.put(channel, callback::onSuccess);
+        client.onSuccessCallbacksObj.put(channel, new RethinkSyncClient.NameCallback<IObject>(){
+            @Override
+            public void onCallback(IObject ret) {
+                callback.onSuccess(ret);
+            }
+        });
         client.onFailCallbacks.put(channel, callback::onFail);
         client.add(channel, data, UUIDUtil.uuid());
     }
