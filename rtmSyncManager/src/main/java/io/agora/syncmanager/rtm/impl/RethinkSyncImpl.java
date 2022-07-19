@@ -13,7 +13,6 @@ import java.util.Map;
 
 import io.agora.syncmanager.rtm.CollectionReference;
 import io.agora.syncmanager.rtm.DocumentReference;
-import io.agora.syncmanager.rtm.IObject;
 import io.agora.syncmanager.rtm.ISyncManager;
 import io.agora.syncmanager.rtm.Scene;
 import io.agora.syncmanager.rtm.SceneReference;
@@ -61,9 +60,7 @@ public class RethinkSyncImpl implements ISyncManager {
         } catch (JSONException e) {
             e.printStackTrace();
         }
-        client.onSuccessCallbacksVoid.put(mDefaultChannel, ret -> callback.onSuccess());
-        client.onFailCallbacks.put(mDefaultChannel, callback::onFail);
-        client.add(mDefaultChannel, data, room.getId());
+        client.add(mDefaultChannel, data, room.getId(), ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
@@ -73,9 +70,7 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void getScenes(Sync.DataListCallback callback) {
-        client.onSuccessCallbacks.put(mDefaultChannel, callback::onSuccess);
-        client.onFailCallbacks.put(mDefaultChannel, callback::onFail);
-        client.query(mDefaultChannel);
+        client.query(mDefaultChannel, ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
     }
 
     @Override
@@ -83,30 +78,21 @@ public class RethinkSyncImpl implements ISyncManager {
         String majorChannel = reference.getParent();
         String channel = reference.getId().equals(majorChannel) ? majorChannel : majorChannel + reference.getId();
 
-        client.onSuccessCallbacksObj.put(channel, callback::onSuccess);
-        client.onFailCallbacks.put(channel, callback::onFail);
-
-        client.query(channel);
+        client.query(channel, ret -> callback.onSuccess(ret.size() > 0? ret.get(0): null), callback::onFail);
     }
 
     @Override
     public void get(DocumentReference reference, String key, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
         String channel = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
-
-        client.onSuccessCallbacksObj.put(channel, callback::onSuccess);
-        client.onFailCallbacks.put(channel, callback::onFail);
-        client.query(channel);
+        client.query(channel, ret -> callback.onSuccess(ret.size() > 0? ret.get(0): null), callback::onFail);
     }
 
     @Override
     public void get(CollectionReference reference, Sync.DataListCallback callback) {
         String majorChannel = reference.getParent();
         String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-
-        client.onSuccessCallbacks.put(channel, callback::onSuccess);
-        client.onFailCallbacks.put(channel, callback::onFail);
-        client.query(channel);
+        client.query(channel, ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
     }
 
     @Override
@@ -118,14 +104,7 @@ public class RethinkSyncImpl implements ISyncManager {
     public void add(CollectionReference reference, Object data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
         String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.onSuccessCallbacksObj.put(channel, new RethinkSyncClient.NameCallback<IObject>(){
-            @Override
-            public void onCallback(IObject ret) {
-                callback.onSuccess(ret);
-            }
-        });
-        client.onFailCallbacks.put(channel, callback::onFail);
-        client.add(channel, data, UUIDUtil.uuid());
+        client.add(channel, data, UUIDUtil.uuid(), callback::onSuccess, callback::onFail);
     }
 
     @Override
@@ -134,24 +113,18 @@ public class RethinkSyncImpl implements ISyncManager {
         if(reference.getId().equals(majorChannel)){
             String channel = mDefaultChannel;
 
-            client.onSuccessCallbacksVoid.put(channel, ret -> callback.onSuccess());
-            client.onFailCallbacks.put(channel, callback::onFail);
-
             // remove the scene itself, remove it from scene list
             List<String> list = new ArrayList<>();
             list.add(majorChannel);
-            client.delete(channel, list);
+            client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
         }
         else{
             // remove specific property
             String channel = majorChannel + reference.getId();
 
-            client.onSuccessCallbacksVoid.put(channel, ret -> callback.onSuccess());
-            client.onFailCallbacks.put(channel, callback::onFail);
-
             List<String> list = new ArrayList<>();
             list.add(reference.getId());
-            client.delete(channel, list);
+            client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
         }
     }
 
@@ -166,79 +139,93 @@ public class RethinkSyncImpl implements ISyncManager {
         String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
         List<String> list = new ArrayList<>();
         list.add(id);
-        client.onSuccessCallbacksVoid.put(channel, ret -> callback.onSuccess());
-        client.onFailCallbacks.put(channel, callback::onFail);
-
-        client.delete(channel, list);
+        client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
     public void update(DocumentReference reference, String key, Object data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
         String channel = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
-        client.onSuccessCallbacksObj.put(channel, callback::onSuccess);
-        client.onFailCallbacks.put(channel, callback::onFail);
-        client.update(channel, data, channel);
+        client.update(channel, data, channel, callback::onSuccess, callback::onFail);
     }
 
     @Override
     public void update(DocumentReference reference, HashMap<String, Object> data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
         String channel = reference.getId().equals(majorChannel) ? majorChannel : majorChannel + reference.getId();
-        client.onSuccessCallbacksObj.put(channel, callback::onSuccess);
-        client.onFailCallbacks.put(channel, callback::onFail);
-        client.update(channel, data, reference.getId());
+        client.update(channel, data, reference.getId(), callback::onSuccess, callback::onFail);
     }
 
     @Override
     public void update(CollectionReference reference, String id, Object data, Sync.Callback callback) {
         String majorChannel = reference.getParent();
         String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.onSuccessCallbacksVoid.put(channel, ret -> callback.onSuccess());
-        client.onFailCallbacks.put(channel, callback::onFail);
-        client.update(channel, data, id);
+        client.update(channel, data, id, ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
     public void subscribe(DocumentReference reference, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
         String channel = reference.getId().equals(majorChannel) ? majorChannel : majorChannel + reference.getId();
-        client.onCreateCallbacks.put(channel, listener::onCreated);
-        client.onUpdateCallbacks.put(channel, listener::onUpdated);
-        client.onDeletedCallbacks.put(channel, listener::onDeleted);
-        client.onFailCallbacks.put(channel, listener::onSubscribeError);
-        client.subscribe(channel);
+        client.subscribe(channel,
+                listener::onCreated,
+                ret -> {
+                    for (RethinkSyncClient.Attribute attribute : ret) {
+                        listener.onUpdated(attribute);
+                    }
+                },
+                ret -> {
+                    for (String objectId : ret) {
+                        listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+                    }
+                },
+                listener::onSubscribeError,
+                listener);
     }
 
     @Override
     public void subscribe(DocumentReference reference, String key, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
         String channel = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
-        client.onCreateCallbacks.put(channel, listener::onCreated);
-        client.onUpdateCallbacks.put(channel, listener::onUpdated);
-        client.onDeletedCallbacks.put(channel, listener::onDeleted);
-        client.onFailCallbacks.put(channel, listener::onSubscribeError);
-        client.subscribe(channel);
+        client.subscribe(channel,
+                listener::onCreated,
+                ret -> {
+                    for (RethinkSyncClient.Attribute attribute : ret) {
+                        listener.onUpdated(attribute);
+                    }
+                },
+                ret -> {
+                    for (String objectId : ret) {
+                        listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+                    }
+                },
+                listener::onSubscribeError,
+                listener);
     }
 
     @Override
     public void subscribe(CollectionReference reference, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
         String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.onCreateCallbacks.put(channel, listener::onCreated);
-        client.onUpdateCallbacks.put(channel, listener::onUpdated);
-        client.onDeletedCallbacks.put(channel, listener::onDeleted);
-        client.onFailCallbacks.put(channel, listener::onSubscribeError);
-        client.subscribe(channel);
+        client.subscribe(channel,
+                listener::onCreated,
+                ret -> {
+                    for (RethinkSyncClient.Attribute attribute : ret) {
+                        listener.onUpdated(attribute);
+                    }
+                },
+                ret -> {
+                    for (String objectId : ret) {
+                        listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+                    }
+                },
+                listener::onSubscribeError,
+                listener);
     }
 
     @Override
     public void unsubscribe(String id, Sync.EventListener listener) {
-        client.onCreateCallbacks.remove(id);
-        client.onUpdateCallbacks.remove(id);
-        client.onDeletedCallbacks.remove(id);
-        client.onFailCallbacks.remove(id);
-        client.unsubscribe(id);
+        client.unsubscribe(id, listener);
     }
 
     @Override
