@@ -16,12 +16,13 @@ import org.json.JSONObject;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
@@ -51,19 +52,21 @@ public class RethinkSyncClient {
     private final Object heartTimerLock = new Object();
     private volatile long heartLastPong = 0;
 
-    private final Map<String, CallbackHandler> callbackHandlers = new ConcurrentHashMap<>();
+    public final Map<String, CallbackHandler> callbackHandlers = new HashMap<>();
 
     private final static Gson gson = new Gson();
 
     public void init(String appId, String channelName, ICallback<Integer> complete) {
         this.appId = appId;
         this.channelName = channelName;
-        connect(complete);
+        connect(complete, true);
     }
 
     public void release() {
         disconnect();
-        callbackHandlers.clear();
+        synchronized (callbackHandlers) {
+            callbackHandlers.clear();
+        }
     }
 
     public void add(String channelName,
@@ -73,7 +76,7 @@ public class RethinkSyncClient {
                     ICallback<SyncManagerException> onError) {
         String uuid = UUIDUtil.uuid();
         writeData(uuid, channelName, data, objectId, SocketType.send, true,
-                new CallbackHandler(uuid) {
+                new CallbackHandler(uuid, SocketType.send) {
                     @Override
                     boolean handleResult(int code, String message) {
                         if (code != 0) {
@@ -103,7 +106,7 @@ public class RethinkSyncClient {
     ) {
         String uuid = UUIDUtil.uuid();
         writeData(uuid, channelName, data, objectId, SocketType.send, false,
-                new CallbackHandler(uuid) {
+                new CallbackHandler(uuid, SocketType.send) {
                     @Override
                     boolean handleResult(int code, String message) {
                         if (code != 0) {
@@ -131,7 +134,7 @@ public class RethinkSyncClient {
                       ICallback<SyncManagerException> onError) {
         String uuid = UUIDUtil.uuid();
         writeData(uuid, channelName, null, "", SocketType.query, false,
-                new CallbackHandler(uuid) {
+                new CallbackHandler(uuid, SocketType.query) {
                     @Override
                     boolean handleResult(int code, String message) {
                         if (code != 0) {
@@ -161,12 +164,20 @@ public class RethinkSyncClient {
                           Object tag) {
         String requestId = UUIDUtil.uuid();
         writeData(requestId, channelName, null, "", SocketType.subscribe, false,
-                new CallbackHandler(requestId, tag, -1) {
+                new CallbackHandler(requestId, SocketType.subscribe, tag, -1) {
                     @Override
                     void handleLocalCreate(Attribute attribute) {
                         super.handleLocalCreate(attribute);
                         if (onCreate != null) {
                             onCreate.onCallback(attribute);
+                        }
+                    }
+
+                    @Override
+                    void handleLocalDelete(Attribute attribute) {
+                        super.handleLocalDelete(attribute);
+                        if (onDelete != null) {
+                            onDelete.onCallback(Collections.singletonList(attribute.key));
                         }
                     }
 
@@ -185,13 +196,13 @@ public class RethinkSyncClient {
                     boolean handleAttrs(SocketType type, JSONObject data, List<Attribute> attributes) {
                         if (type == SocketType.send) {
                             String propsUpdate = data.optString("propsUpdate");
-                            if(!TextUtils.isEmpty(propsUpdate) && onUpdate != null){
+                            if (!TextUtils.isEmpty(propsUpdate) && onUpdate != null) {
                                 try {
                                     JSONObject jsonObject = new JSONObject(propsUpdate);
-                                    List<Attribute> ret = new ArrayList<>(attributes);
+                                    List<Attribute> ret = new ArrayList<>();
 
                                     JSONArray names = jsonObject.names();
-                                    if(names != null){
+                                    if (names != null) {
                                         for (int i = 0; i < names.length(); i++) {
                                             String key = names.optString(i);
                                             String value = jsonObject.optString(key);
@@ -219,20 +230,41 @@ public class RethinkSyncClient {
     }
 
     public void unsubscribe(String channelName, Object tag) {
-        String requestId = UUIDUtil.uuid();
+
 
         List<String> keys = new ArrayList<>();
-        for (String key : callbackHandlers.keySet()) {
-            CallbackHandler handler = callbackHandlers.get(key);
-            if (handler == null || handler.tag == tag) {
-                keys.add(key);
+        List<String> channelNames = new ArrayList<>();
+
+        synchronized (callbackHandlers) {
+            for (String key : callbackHandlers.keySet()) {
+                CallbackHandler handler = callbackHandlers.get(key);
+                if (handler != null && !TextUtils.isEmpty(handler.channelName) && handler.channelName.startsWith(channelName)) {
+                    keys.add(key);
+                }
+            }
+            if (keys.size() == 0) {
+                for (String key : callbackHandlers.keySet()) {
+                    CallbackHandler handler = callbackHandlers.get(key);
+                    if (handler != null && handler.tag == tag) {
+                        keys.add(key);
+                    }
+                }
+            }
+
+
+            for (String key : keys) {
+                CallbackHandler remove = callbackHandlers.remove(key);
+                if (remove != null) {
+                    channelNames.add(remove.channelName);
+                }
             }
         }
-        for (String key : keys) {
-            callbackHandlers.remove(key);
-        }
 
-        writeData(requestId, channelName, null, "", SocketType.unsubsribe, false, null);
+
+        for (String name : channelNames) {
+            String requestId = UUIDUtil.uuid();
+            writeData(requestId, name, null, "", SocketType.unsubsribe, false, null);
+        }
     }
 
     public void delete(String channelName,
@@ -250,7 +282,7 @@ public class RethinkSyncClient {
         socketMsg.put("props", objectIds);
 
         if (socketClient != null && socketClient.isOpen()) {
-            CallbackHandler handler = new CallbackHandler(requestId) {
+            CallbackHandler handler = new CallbackHandler(requestId, SocketType.deleteProp) {
                 @Override
                 boolean handleResult(int code, String message) {
                     if (code != 0) {
@@ -270,7 +302,10 @@ public class RethinkSyncClient {
                     return true;
                 }
             };
-            callbackHandlers.put(requestId, handler);
+            handler.channelName = channelName;
+            synchronized (callbackHandlers) {
+                callbackHandlers.put(requestId, handler);
+            }
 
             String text = gson.toJson(socketMsg);
             Log.d(LOG_TAG, "WebSocketClient send message=" + text);
@@ -283,7 +318,7 @@ public class RethinkSyncClient {
     }
 
 
-    private void connect(ICallback<Integer> complete) {
+    private void connect(ICallback<Integer> complete, boolean lock) {
         disconnect();
 
         URI msgUri = null;
@@ -295,14 +330,30 @@ public class RethinkSyncClient {
             }
             return;
         }
+
+        CountDownLatch latch = new CountDownLatch(1);
+
         socketClient = new WebSocketClient(msgUri) {
             @Override
             public void onOpen(ServerHandshake handshakedata) {
                 Log.d(LOG_TAG, "WebSocketClient onOpen status=" + handshakedata.getHttpStatus());
-                startHeartTimer(1);
+                //startHeartTimer(10);
+
+                synchronized (callbackHandlers) {
+                    for (String key : callbackHandlers.keySet()) {
+                        CallbackHandler handler = callbackHandlers.get(key);
+                        if (handler != null && handler.type == SocketType.subscribe) {
+                            writeData(handler.requestId, handler.channelName, null, "", SocketType.subscribe, false, handler);
+                        }
+                    }
+                }
 
                 if (complete != null) {
                     complete.onCallback(0);
+                }
+
+                if(latch.getCount() != 0){
+                    latch.countDown();
                 }
             }
 
@@ -315,9 +366,7 @@ public class RethinkSyncClient {
                 try {
                     dealSocketMessage(message);
                 } catch (JSONException e) {
-                    if (complete != null) {
-                        complete.onCallback(ERROR_JSON_PARSE);
-                    }
+                    Log.e(LOG_TAG, "", e);
                 }
             }
 
@@ -325,22 +374,34 @@ public class RethinkSyncClient {
             public void onClose(int code, String reason, boolean remote) {
                 stopHeartTimer();
                 if (code == CloseFrame.ABNORMAL_CLOSE) {
-                    RethinkSyncClient.this.connect(complete);
+                    RethinkSyncClient.this.connect(complete, false);
                 }
             }
 
             @Override
             public void onError(Exception ex) {
                 stopHeartTimer();
-                if (complete != null) {
-                    complete.onCallback(-2);
+                Log.e(LOG_TAG, "", ex);
+                if(latch.getCount() != 0){
+                    latch.countDown();
                 }
+                RethinkSyncClient.this.connect(complete, false);
             }
         };
         // close webclient inner heart detect
         socketClient.setConnectionLostTimeout(-1);
         socketClient.connect();
         Log.d(LOG_TAG, "WebSocketClient connect url=" + SOCKET_URL);
+
+        if (lock) {
+            try {
+                latch.await();
+            } catch (InterruptedException e) {
+                if (complete != null) {
+                    complete.onCallback(-11);
+                }
+            }
+        }
     }
 
     private void disconnect() {
@@ -356,7 +417,9 @@ public class RethinkSyncClient {
         String action = dict.optString("action");
 
         if (action.equals(SocketType.ping.name())) {
-            heartLastPong = System.nanoTime();
+            synchronized (heartTimerLock){
+                heartLastPong = System.nanoTime();
+            }
             return;
         }
 
@@ -367,44 +430,55 @@ public class RethinkSyncClient {
 
         List<CallbackHandler> handlers = new ArrayList<>();
 
-        CallbackHandler cb = callbackHandlers.get(requestId);
-        if (cb != null && channelName.equals(cb.channelName)) {
-            handlers.add(cb);
-        } else {
-            for (String key : callbackHandlers.keySet()) {
-                CallbackHandler h = callbackHandlers.get(key);
-                if (h != null && channelName.equals(h.channelName)) {
-                    handlers.add(h);
+        synchronized (callbackHandlers) {
+            CallbackHandler cb = callbackHandlers.get(requestId);
+            if (cb != null && channelName.equals(cb.channelName) ) {
+                handlers.add(cb);
+            } else {
+                for (String key : callbackHandlers.keySet()) {
+                    CallbackHandler h = callbackHandlers.get(key);
+                    if (h != null && channelName.equals(h.channelName) && h.type == SocketType.subscribe) {
+                        handlers.add(h);
+                    }
                 }
             }
+
         }
 
         for (CallbackHandler handler : handlers) {
 
             if (handler.handleResult(code, msg)) {
-                callbackHandlers.remove(handler.key);
-                return;
+                synchronized (callbackHandlers) {
+                    callbackHandlers.remove(handler.requestId);
+                }
+                continue;
             }
             if (handler.isExpired() && handler.handleResult(ERROR_CALLBACK_EXPIRED, "callback has been expired")) {
-                callbackHandlers.remove(handler.key);
-                return;
+                synchronized (callbackHandlers) {
+                    callbackHandlers.remove(handler.requestId);
+                }
+                continue;
             }
 
             JSONObject data = dict.optJSONObject("data");
 
             if (data == null) {
                 if (handler.handleResult(ERROR_SERVER_DATA, "server not data return. msg: " + message)) {
-                    callbackHandlers.remove(handler.key);
+                    synchronized (callbackHandlers) {
+                        callbackHandlers.remove(handler.requestId);
+                    }
                 }
-                return;
+                continue;
             }
 
             JSONObject props = data.optJSONObject("props");
             if (props == null) {
                 if (handler.handleResult(ERROR_SERVER_DATA, "server not data props return. msg: " + message)) {
-                    callbackHandlers.remove(handler.key);
+                    synchronized (callbackHandlers) {
+                        callbackHandlers.remove(handler.requestId);
+                    }
                 }
-                return;
+                continue;
             }
 
             List<Attribute> attributes = new ArrayList<>();
@@ -419,8 +493,18 @@ public class RethinkSyncClient {
 
             String realAction = data.optString("action");
 
-            if (handler.handleAttrs(SocketType.valueOf(realAction), data, attributes)) {
-                callbackHandlers.remove(handler.key);
+
+            SocketType type = null;
+            try {
+                type = SocketType.valueOf(realAction);
+            } catch (IllegalArgumentException e) {
+                type = SocketType.send;
+            }
+
+            if (handler.handleAttrs(type, data, attributes)) {
+                synchronized (callbackHandlers) {
+                    callbackHandlers.remove(handler.requestId);
+                }
             }
         }
     }
@@ -494,17 +578,21 @@ public class RethinkSyncClient {
                 handler.channelName = channelName;
                 handler.propsId = propsId;
                 handler.propsValue = propsValues;
-                callbackHandlers.put(requestId, handler);
+                synchronized (callbackHandlers) {
+                    callbackHandlers.put(requestId, handler);
+                }
             }
             String text = gson.toJson(socketMsg);
             Log.d(LOG_TAG, "WebSocketClient send message=" + text);
             socketClient.send(text);
 
             if (isAdd) {
-                for (String key : callbackHandlers.keySet()) {
-                    CallbackHandler ch = callbackHandlers.get(key);
-                    if (ch != null && channelName.equals(ch.channelName)) {
-                        ch.handleLocalCreate(new Attribute(propsId, propsValues));
+                synchronized (callbackHandlers) {
+                    for (String key : callbackHandlers.keySet()) {
+                        CallbackHandler ch = callbackHandlers.get(key);
+                        if (ch != null && channelName.equals(ch.channelName)) {
+                            ch.handleLocalCreate(new Attribute(propsId, propsValues));
+                        }
                     }
                 }
             }
@@ -544,10 +632,10 @@ public class RethinkSyncClient {
                                         params.put("action", SocketType.ping.name());
                                         params.put("appId", appId);
                                         params.put("channelName", channelName);
-                                        params.put("request", UUID.randomUUID().toString());
+                                        params.put("requestId", UUID.randomUUID().toString());
 
                                         String text = gson.toJson(params);
-                                        //Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+                                        Log.d(LOG_TAG, "WebSocketClient send message=" + text);
                                         socketClient.send(text);
                                     } else {
                                         Log.e(LOG_TAG, "Trying to ping a non open connection: {}");
@@ -572,9 +660,11 @@ public class RethinkSyncClient {
         }
     }
 
-    private static abstract class CallbackHandler {
+    static abstract class CallbackHandler {
 
-        final String key;
+        final String requestId;
+
+        final SocketType type;
 
         // save tag in order to unsubscribe
         final Object tag;
@@ -584,16 +674,17 @@ public class RethinkSyncClient {
 
         String channelName, propsId, propsValue;
 
-        CallbackHandler(String key) {
-            this(key, null);
+        CallbackHandler(String requestId, SocketType type) {
+            this(requestId, type, null);
         }
 
-        CallbackHandler(String key, Object tag) {
-            this(key, tag, System.currentTimeMillis());
+        CallbackHandler(String requestId, SocketType type, Object tag) {
+            this(requestId, type, tag, System.currentTimeMillis());
         }
 
-        CallbackHandler(String key, Object tag, long ts) {
-            this.key = key;
+        CallbackHandler(String requestId, SocketType type, Object tag, long ts) {
+            this.requestId = requestId;
+            this.type = type;
             this.tag = tag;
             this.ts = ts;
         }
@@ -602,7 +693,11 @@ public class RethinkSyncClient {
 
         abstract boolean handleAttrs(SocketType type, JSONObject data, List<Attribute> attributes);
 
-        void handleLocalCreate(Attribute attribute) {}
+        void handleLocalCreate(Attribute attribute) {
+        }
+
+        void handleLocalDelete(Attribute attribute) {
+        }
 
         boolean isExpired() {
             return ts > 0 && (System.currentTimeMillis() - ts) > 2 * 60 * 1000; // 2min
