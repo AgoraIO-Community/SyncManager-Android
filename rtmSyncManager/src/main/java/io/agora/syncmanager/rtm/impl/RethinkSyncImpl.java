@@ -30,7 +30,9 @@ public class RethinkSyncImpl implements ISyncManager {
 
     private RethinkSyncClient client;
 
-    public RethinkSyncImpl(Context context, Map<String, String> params, Sync.Callback callback) {
+    private final List<RethinkSyncClient.Attribute> cacheData = new ArrayList<>();
+
+    public RethinkSyncImpl(Context  context, Map<String, String> params, Sync.Callback callback) {
         appId = params.get(APP_ID);
         mDefaultChannel = params.get(DEFAULT_CHANNEL_NAME_PARAM);
         assert appId != null;
@@ -43,6 +45,7 @@ public class RethinkSyncImpl implements ISyncManager {
                 callback.onFail(new SyncManagerException(ret, "RethinkSyncClient init error"));
             }
         });
+
     }
 
     @Override
@@ -65,6 +68,20 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void joinScene(String sceneId, Sync.JoinSceneCallback callback) {
+        client.subscribe(mDefaultChannel, null, null, ret -> {
+            // 騒操作？
+            List<RethinkSyncClient.CallbackHandler> notifyHandlers = new ArrayList<>();
+            for (String requestId : client.callbackHandlers.keySet()) {
+                RethinkSyncClient.CallbackHandler handler = client.callbackHandlers.get(requestId);
+                if(handler != null && ret.contains(handler.channelName)){
+                    notifyHandlers.add(handler);
+                }
+            }
+            for (RethinkSyncClient.CallbackHandler handler : notifyHandlers) {
+                handler.handleLocalDelete(new RethinkSyncClient.Attribute(handler.channelName, ""));
+            }
+
+        }, null, null);
         callback.onSuccess(new SceneReference(this, sceneId, sceneId));
     }
 
@@ -117,6 +134,7 @@ public class RethinkSyncImpl implements ISyncManager {
             List<String> list = new ArrayList<>();
             list.add(majorChannel);
             client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
+            client.unsubscribe(mDefaultChannel, null);
         }
         else{
             // remove specific property
