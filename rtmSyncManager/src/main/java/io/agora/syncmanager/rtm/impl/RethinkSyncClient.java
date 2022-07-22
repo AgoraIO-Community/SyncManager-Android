@@ -35,7 +35,7 @@ import io.agora.syncmanager.rtm.utils.UUIDUtil;
 
 public class RethinkSyncClient {
     private static final String LOG_TAG = "RethinkSyncClient";
-    private static final String SOCKET_URL = "wss://test-rethinkdb-msg.bj2.agoralab.co";
+    private static final String SOCKET_URL = "wss://rethinkdb-msg.bj2.agoralab.co";
 
     private static final int ERROR_JSON_PARSE = -1001;
     private static final int ERROR_SOCKET_CLOSED = -1002;
