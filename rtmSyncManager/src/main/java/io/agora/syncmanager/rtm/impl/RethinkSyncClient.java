@@ -22,6 +22,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -52,7 +53,7 @@ public class RethinkSyncClient {
     private final Object heartTimerLock = new Object();
     private volatile long heartLastPong = 0;
 
-    public final Map<String, CallbackHandler> callbackHandlers = new HashMap<>();
+    public final Map<String, CallbackHandler> callbackHandlers = new ConcurrentHashMap<>();
 
     private final static Gson gson = new Gson();
 
