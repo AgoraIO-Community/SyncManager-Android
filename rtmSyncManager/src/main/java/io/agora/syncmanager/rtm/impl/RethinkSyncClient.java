@@ -1,5 +1,6 @@
 package io.agora.syncmanager.rtm.impl;
 
+import android.os.Build;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -29,6 +30,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import javax.net.ssl.SSLParameters;
+
 import io.agora.common.annotation.NonNull;
 import io.agora.syncmanager.rtm.IObject;
 import io.agora.syncmanager.rtm.SyncManagerException;
@@ -36,7 +39,8 @@ import io.agora.syncmanager.rtm.utils.UUIDUtil;
 
 public class RethinkSyncClient {
     private static final String LOG_TAG = "RethinkSyncClient";
-    private static final String SOCKET_URL = "wss://rethinkdb-msg.bj2.agoralab.co";
+    private static final String SOCKET_HOST_NAME = "rethinkdb-msg.bj2.agoralab.co";
+    private static final String SOCKET_URL = "wss://" + SOCKET_HOST_NAME;
 
     private static final int ERROR_JSON_PARSE = -1001;
     private static final int ERROR_SOCKET_CLOSED = -1002;
@@ -387,6 +391,13 @@ public class RethinkSyncClient {
                     latch.countDown();
                 }
                 RethinkSyncClient.this.connect(complete, false);
+            }
+
+            @Override
+            protected void onSetSSLParameters(SSLParameters sslParameters) {
+                if(Build.VERSION.SDK_INT > Build.VERSION_CODES.N){
+                    super.onSetSSLParameters(sslParameters);
+                }
             }
         };
         // close webclient inner heart detect
