@@ -68,20 +68,20 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void joinScene(String sceneId, Sync.JoinSceneCallback callback) {
-        client.subscribe(mDefaultChannel, null, null, ret -> {
-            // 騒操作？
-            List<RethinkSyncClient.CallbackHandler> notifyHandlers = new ArrayList<>();
-            for (String requestId : client.callbackHandlers.keySet()) {
-                RethinkSyncClient.CallbackHandler handler = client.callbackHandlers.get(requestId);
-                if(handler != null && ret.contains(handler.channelName)){
-                    notifyHandlers.add(handler);
-                }
-            }
-            for (RethinkSyncClient.CallbackHandler handler : notifyHandlers) {
-                handler.handleLocalDelete(new RethinkSyncClient.Attribute(handler.channelName, ""));
-            }
-
-        }, null, null);
+//        client.subscribe(mDefaultChannel, null, null, ret -> {
+//            // 騒操作？
+//            List<RethinkSyncClient.CallbackHandler> notifyHandlers = new ArrayList<>();
+//            for (String requestId : client.callbackHandlers.keySet()) {
+//                RethinkSyncClient.CallbackHandler handler = client.callbackHandlers.get(requestId);
+//                if(handler != null && ret.contains(handler.channelName)){
+//                    notifyHandlers.add(handler);
+//                }
+//            }
+//            for (RethinkSyncClient.CallbackHandler handler : notifyHandlers) {
+//                handler.handleLocalDelete(new RethinkSyncClient.Attribute(handler.channelName, ""));
+//            }
+//
+//        }, null, null);
         callback.onSuccess(new SceneReference(this, sceneId, sceneId));
     }
 
@@ -170,7 +170,7 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void update(DocumentReference reference, HashMap<String, Object> data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? majorChannel : majorChannel + reference.getId();
+        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
         client.update(channel, data, reference.getId(), callback::onSuccess, callback::onFail);
     }
 
@@ -184,7 +184,7 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void subscribe(DocumentReference reference, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? majorChannel : majorChannel + reference.getId();
+        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
         client.subscribe(channel,
                 listener::onCreated,
                 ret -> {
