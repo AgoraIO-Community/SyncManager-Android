@@ -243,19 +243,12 @@ public class RethinkSyncClient {
         synchronized (callbackHandlers) {
             for (String key : callbackHandlers.keySet()) {
                 CallbackHandler handler = callbackHandlers.get(key);
-                if (handler != null && !TextUtils.isEmpty(handler.channelName) && handler.channelName.startsWith(channelName)) {
+                if (handler == null
+                        || (!TextUtils.isEmpty(handler.channelName) && handler.channelName.startsWith(channelName))
+                        || (tag != null && handler.tag == tag)) {
                     keys.add(key);
                 }
             }
-            if (keys.size() == 0) {
-                for (String key : callbackHandlers.keySet()) {
-                    CallbackHandler handler = callbackHandlers.get(key);
-                    if (handler != null && handler.tag == tag) {
-                        keys.add(key);
-                    }
-                }
-            }
-
 
             for (String key : keys) {
                 CallbackHandler remove = callbackHandlers.remove(key);

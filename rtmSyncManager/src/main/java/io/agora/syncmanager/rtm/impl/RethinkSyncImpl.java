@@ -134,7 +134,6 @@ public class RethinkSyncImpl implements ISyncManager {
             List<String> list = new ArrayList<>();
             list.add(majorChannel);
             client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
-            client.unsubscribe(mDefaultChannel, null);
         }
         else{
             // remove specific property
