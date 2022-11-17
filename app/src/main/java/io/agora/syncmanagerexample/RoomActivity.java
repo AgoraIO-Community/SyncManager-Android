@@ -67,7 +67,7 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
         Scene scene = new Scene();
         scene.setId(channel);
         scene.setUserId(userid);
-        Map<String, String> property = new HashMap();
+        Map<String, Object> property = new HashMap();
         property.put("type", "2");
         property.put("backgroundId", "1");
         scene.setProperty(property);
