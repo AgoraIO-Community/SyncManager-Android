@@ -39,13 +39,10 @@ public class RethinkSyncImpl implements ISyncManager {
         assert mDefaultChannel != null;
         client = new RethinkSyncClient();
         client.init(appId, mDefaultChannel, ret -> {
-            if(ret == 0){
-                callback.onSuccess();
-            }else{
-                callback.onFail(new SyncManagerException(ret, "RethinkSyncClient init error"));
-            }
+            callback.onSuccess();
+        }, ret -> {
+            callback.onFail(new SyncManagerException(ret, "RethinkSyncClient init error"));
         });
-
     }
 
     @Override

@@ -1,6 +1,8 @@
 package io.agora.syncmanager.rtm.impl;
 
 import android.os.Build;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 
@@ -42,10 +44,18 @@ public class RethinkSyncClient {
     private static final String SOCKET_HOST_NAME = "rethinkdb-msg.bj2.agoralab.co";
     private static final String SOCKET_URL = "wss://" + SOCKET_HOST_NAME;
 
+    private static final int ERROR_OK = 0;
+    private static final int ERROR_URL_FORMAT = -1000;
     private static final int ERROR_JSON_PARSE = -1001;
     private static final int ERROR_SOCKET_CLOSED = -1002;
     private static final int ERROR_SERVER_DATA = -1003;
     private static final int ERROR_CALLBACK_EXPIRED = -1004;
+    private static final int ERROR_CONNECT_FAILED = -1999;
+
+
+    private static final int CONNECT_CLOSE_RETRY_WAIT_MS = 2000;// 2s
+    private static final int CONNECT_CLOSE_RETRY_COUNT = 8 * 60 * 60 * 1000 / CONNECT_CLOSE_RETRY_WAIT_MS; // 8h内重连
+    private volatile int connectRetryCount = 0;
 
     private String appId;
     private String channelName;
@@ -58,17 +68,24 @@ public class RethinkSyncClient {
     private volatile long heartLastPong = 0;
 
     public final Map<String, CallbackHandler> callbackHandlers = new ConcurrentHashMap<>();
+    private final Handler reconnectHandler = new Handler(Looper.getMainLooper());
 
     private final static Gson gson = new Gson();
 
-    public void init(String appId, String channelName, ICallback<Integer> complete) {
+    private ICallback<Integer> successCallback;
+    private ICallback<Integer> failureCallback;
+
+    public void init(String appId, String channelName, ICallback<Integer> success, ICallback<Integer> failure) {
         this.appId = appId;
         this.channelName = channelName;
-        connect(complete, true);
+        this.successCallback = success;
+        this.failureCallback = failure;
+        connect(true);
     }
 
     public void release() {
         disconnect();
+        successCallback = failureCallback = null;
         synchronized (callbackHandlers) {
             callbackHandlers.clear();
         }
@@ -316,15 +333,15 @@ public class RethinkSyncClient {
     }
 
 
-    private void connect(ICallback<Integer> complete, boolean lock) {
+    private void connect(boolean lock) {
         disconnect();
 
         URI msgUri = null;
         try {
             msgUri = new URI(SOCKET_URL);
         } catch (URISyntaxException e) {
-            if (complete != null) {
-                complete.onCallback(-1);
+            if (failureCallback != null) {
+                failureCallback.onCallback(ERROR_URL_FORMAT);
             }
             return;
         }
@@ -345,9 +362,14 @@ public class RethinkSyncClient {
                         }
                     }
                 }
-
-                if (complete != null) {
-                    complete.onCallback(0);
+                
+                synchronized (reconnectHandler){
+                    connectRetryCount = 0;
+                }
+                
+                if (successCallback != null) {
+                    successCallback.onCallback(ERROR_OK);
+                    successCallback = null;
                 }
 
                 if(latch.getCount() != 0){
@@ -371,19 +393,32 @@ public class RethinkSyncClient {
             @Override
             public void onClose(int code, String reason, boolean remote) {
                 stopHeartTimer();
-                if (code == CloseFrame.ABNORMAL_CLOSE) {
-                    RethinkSyncClient.this.connect(complete, false);
+                Log.d(LOG_TAG, "onClose code=" + code + ", reason=" + reason + ", remote=" + remote);
+                if (code != CloseFrame.NORMAL) {
+                    synchronized (reconnectHandler){
+                        connectRetryCount ++;
+                        if(connectRetryCount > CONNECT_CLOSE_RETRY_COUNT){
+                            if(failureCallback != null){
+                                failureCallback.onCallback(ERROR_CONNECT_FAILED);
+                            }
+                            return;
+                        }
+                        reconnectHandler.removeCallbacksAndMessages(null);
+                        reconnectHandler.postDelayed(() -> {
+                            Log.d(LOG_TAG, "onClose reconnecting " + connectRetryCount + "...");
+                            RethinkSyncClient.this.connect(false);
+                        }, CONNECT_CLOSE_RETRY_WAIT_MS);
+                    }
                 }
             }
 
             @Override
             public void onError(Exception ex) {
                 stopHeartTimer();
-                Log.e(LOG_TAG, "", ex);
+                Log.e(LOG_TAG, ex.toString());
                 if(latch.getCount() != 0){
                     latch.countDown();
                 }
-                RethinkSyncClient.this.connect(complete, false);
             }
 
             @Override
@@ -402,8 +437,8 @@ public class RethinkSyncClient {
             try {
                 latch.await();
             } catch (InterruptedException e) {
-                if (complete != null) {
-                    complete.onCallback(-11);
+                if (failureCallback != null) {
+                    failureCallback.onCallback(-11);
                 }
             }
         }
@@ -411,6 +446,10 @@ public class RethinkSyncClient {
 
     private void disconnect() {
         stopHeartTimer();
+        synchronized (reconnectHandler){
+            connectRetryCount = 0;
+            reconnectHandler.removeCallbacksAndMessages(null);
+        }
         if (socketClient != null) {
             socketClient.closeConnection(CloseFrame.NORMAL, "");
             socketClient = null;
