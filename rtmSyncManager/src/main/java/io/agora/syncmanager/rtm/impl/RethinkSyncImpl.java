@@ -2,12 +2,8 @@ package io.agora.syncmanager.rtm.impl;
 
 import android.content.Context;
 
-import org.json.JSONException;
-import org.json.JSONObject;
-
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
@@ -47,20 +43,7 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void createScene(Scene room, Sync.Callback callback) {
-        HashMap<String, Object> data = new HashMap<>();
-        data.put("objectId", room.getId());
-        try {
-            String sceneInfo = room.toJson();
-            JSONObject jsScene = new JSONObject(sceneInfo);
-            Iterator<String> keys = jsScene.keys();
-            while (keys.hasNext()){
-                String key = keys.next();
-                data.put(key, jsScene.opt(key));
-            }
-        } catch (JSONException e) {
-            e.printStackTrace();
-        }
-        client.add(mDefaultChannel, data, room.getId(), ret -> callback.onSuccess(), callback::onFail);
+        client.add(mDefaultChannel, room.toJson(), room.getId(), ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override

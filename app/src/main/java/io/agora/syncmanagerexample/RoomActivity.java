@@ -70,6 +70,10 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
         Map<String, Object> property = new HashMap();
         property.put("type", "2");
         property.put("backgroundId", "1");
+        UserInfo userInfo = new UserInfo();
+        userInfo.userId = System.currentTimeMillis() + "";
+        userInfo.userName = "abcdefg";
+        property.put("owner", userInfo);
         scene.setProperty(property);
         Sync.Instance().createScene(scene, new Sync.Callback() {
             @Override
