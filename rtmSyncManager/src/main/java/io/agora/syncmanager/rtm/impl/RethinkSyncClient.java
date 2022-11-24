@@ -7,6 +7,12 @@ import android.text.TextUtils;
 import android.util.Log;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.ToNumberPolicy;
+import com.google.gson.TypeAdapter;
+import com.google.gson.reflect.TypeToken;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
 
 import org.java_websocket.client.WebSocketClient;
 import org.java_websocket.framing.CloseFrame;
@@ -16,6 +22,7 @@ import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
 
+import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.ArrayList;
@@ -70,7 +77,23 @@ public class RethinkSyncClient {
     public final Map<String, CallbackHandler> callbackHandlers = new ConcurrentHashMap<>();
     private final Handler reconnectHandler = new Handler(Looper.getMainLooper());
 
-    private final static Gson gson = new Gson();
+    private final static Gson gson = new GsonBuilder()
+            .setDateFormat("yyyy-MM-dd HH:mm:ss")
+            .setObjectToNumberStrategy(ToNumberPolicy.LONG_OR_DOUBLE)
+            .registerTypeAdapter(TypeToken.get(JSONObject.class).getType(), new TypeAdapter<JSONObject>() {
+
+                @Override
+                public void write(JsonWriter out, JSONObject value) throws IOException {
+                    out.jsonValue(value.toString());
+                }
+
+                @Override
+                public JSONObject read(JsonReader in) throws IOException {
+                    return null;
+                }
+            })
+            .enableComplexMapKeySerialization()
+            .create();
 
     private ICallback<Integer> successCallback;
     private ICallback<Integer> failureCallback;
@@ -362,17 +385,17 @@ public class RethinkSyncClient {
                         }
                     }
                 }
-                
-                synchronized (reconnectHandler){
+
+                synchronized (reconnectHandler) {
                     connectRetryCount = 0;
                 }
-                
+
                 if (successCallback != null) {
                     successCallback.onCallback(ERROR_OK);
                     successCallback = null;
                 }
 
-                if(latch.getCount() != 0){
+                if (latch.getCount() != 0) {
                     latch.countDown();
                 }
             }
@@ -395,10 +418,10 @@ public class RethinkSyncClient {
                 stopHeartTimer();
                 Log.d(LOG_TAG, "onClose code=" + code + ", reason=" + reason + ", remote=" + remote);
                 if (code != CloseFrame.NORMAL) {
-                    synchronized (reconnectHandler){
-                        connectRetryCount ++;
-                        if(connectRetryCount > CONNECT_CLOSE_RETRY_COUNT){
-                            if(failureCallback != null){
+                    synchronized (reconnectHandler) {
+                        connectRetryCount++;
+                        if (connectRetryCount > CONNECT_CLOSE_RETRY_COUNT) {
+                            if (failureCallback != null) {
                                 failureCallback.onCallback(ERROR_CONNECT_FAILED);
                             }
                             return;
@@ -416,14 +439,14 @@ public class RethinkSyncClient {
             public void onError(Exception ex) {
                 stopHeartTimer();
                 Log.e(LOG_TAG, ex.toString());
-                if(latch.getCount() != 0){
+                if (latch.getCount() != 0) {
                     latch.countDown();
                 }
             }
 
             @Override
             protected void onSetSSLParameters(SSLParameters sslParameters) {
-                if(Build.VERSION.SDK_INT > Build.VERSION_CODES.N){
+                if (Build.VERSION.SDK_INT > Build.VERSION_CODES.N) {
                     super.onSetSSLParameters(sslParameters);
                 }
             }
@@ -446,7 +469,7 @@ public class RethinkSyncClient {
 
     private void disconnect() {
         stopHeartTimer();
-        synchronized (reconnectHandler){
+        synchronized (reconnectHandler) {
             connectRetryCount = 0;
             reconnectHandler.removeCallbacksAndMessages(null);
         }
@@ -461,7 +484,7 @@ public class RethinkSyncClient {
         String action = dict.optString("action");
 
         if (action.equals(SocketType.ping.name())) {
-            synchronized (heartTimerLock){
+            synchronized (heartTimerLock) {
                 heartLastPong = System.nanoTime();
             }
             return;
@@ -476,7 +499,7 @@ public class RethinkSyncClient {
 
         synchronized (callbackHandlers) {
             CallbackHandler cb = callbackHandlers.get(requestId);
-            if (cb != null && channelName.equals(cb.channelName) ) {
+            if (cb != null && channelName.equals(cb.channelName)) {
                 handlers.add(cb);
             } else {
                 for (String key : callbackHandlers.keySet()) {

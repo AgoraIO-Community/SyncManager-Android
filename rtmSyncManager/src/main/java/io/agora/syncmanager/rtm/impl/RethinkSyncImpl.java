@@ -142,8 +142,10 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void update(DocumentReference reference, String key, Object data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
-        client.update(channel, data, channel, callback::onSuccess, callback::onFail);
+        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
+        Map<String, Object> wData = new HashMap<>();
+        wData.put(key, data);
+        client.update(channel, wData, majorChannel, callback::onSuccess, callback::onFail);
     }
 
     @Override
@@ -183,17 +185,25 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void subscribe(DocumentReference reference, String key, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
+        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
         client.subscribe(channel,
-                listener::onCreated,
+                ret ->{
+                    if(ret.getId().equals(majorChannel) && ret.toString().contains(key)){
+                        listener.onCreated(ret);
+                    }
+                },
                 ret -> {
                     for (RethinkSyncClient.Attribute attribute : ret) {
-                        listener.onUpdated(attribute);
+                        if(attribute.getId().equals(majorChannel) && attribute.toString().contains(key)){
+                            listener.onUpdated(attribute);
+                        }
                     }
                 },
                 ret -> {
                     for (String objectId : ret) {
-                        listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+                        if(objectId.equals(majorChannel)){
+                            listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+                        }
                     }
                 },
                 listener::onSubscribeError,
