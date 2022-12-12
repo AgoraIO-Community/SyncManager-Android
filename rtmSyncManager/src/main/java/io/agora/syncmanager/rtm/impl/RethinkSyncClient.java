@@ -375,7 +375,7 @@ public class RethinkSyncClient {
             @Override
             public void onOpen(ServerHandshake handshakedata) {
                 Log.d(LOG_TAG, "WebSocketClient onOpen status=" + handshakedata.getHttpStatus());
-                //startHeartTimer(10);
+                startHeartTimer(30);
 
                 synchronized (callbackHandlers) {
                     for (String key : callbackHandlers.keySet()) {
@@ -402,9 +402,7 @@ public class RethinkSyncClient {
 
             @Override
             public void onMessage(String message) {
-                if (!message.contains("ping")) {
-                    Log.d(LOG_TAG, "WebSocketClient onMessage message=" + message);
-                }
+                Log.d(LOG_TAG, "WebSocketClient onMessage message=" + message);
 
                 try {
                     dealSocketMessage(message);
