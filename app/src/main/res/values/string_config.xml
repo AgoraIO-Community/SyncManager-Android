@@ -1,4 +1,5 @@
 <resources>
     <string name="rtm_appid"></string>
     <string name="default_channel_name">demodefaultchannel</string>
+    <string name="default_scene_name">demotestscene</string>
 </resources>

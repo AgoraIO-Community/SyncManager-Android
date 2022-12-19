@@ -20,9 +20,12 @@ public class RethinkSyncImpl implements ISyncManager {
 
     private static final String APP_ID = "appid";
     private static final String DEFAULT_CHANNEL_NAME_PARAM = "defaultChannel";
+    private static final String DEFAULT_SCENE_NAME_PARAM = "defaultScene";
+    private static final String GET_ROOM_LIST_OBJ_TYPE = "room";
 
     private String appId;
     private String mDefaultChannel;
+    private String mSceneName;
 
     private RethinkSyncClient client;
 
@@ -31,10 +34,12 @@ public class RethinkSyncImpl implements ISyncManager {
     public RethinkSyncImpl(Context  context, Map<String, String> params, Sync.Callback callback) {
         appId = params.get(APP_ID);
         mDefaultChannel = params.get(DEFAULT_CHANNEL_NAME_PARAM);
+        mSceneName = params.get(DEFAULT_SCENE_NAME_PARAM);
         assert appId != null;
         assert mDefaultChannel != null;
+        assert mSceneName != null;
         client = new RethinkSyncClient();
-        client.init(appId, mDefaultChannel, ret -> {
+        client.init(appId, mDefaultChannel, mSceneName, ret -> {
             callback.onSuccess();
         }, ret -> {
             callback.onFail(new SyncManagerException(ret, "RethinkSyncClient init error"));
@@ -43,7 +48,7 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void createScene(Scene room, Sync.Callback callback) {
-        client.add(mDefaultChannel, room.toJson(), room.getId(), ret -> callback.onSuccess(), callback::onFail);
+        client.add(GET_ROOM_LIST_OBJ_TYPE, room.toJson(), room.getId(), ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
@@ -67,7 +72,7 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void getScenes(Sync.DataListCallback callback) {
-        client.query(mDefaultChannel, ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
+        client.getRoomList(ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
     }
 
     @Override

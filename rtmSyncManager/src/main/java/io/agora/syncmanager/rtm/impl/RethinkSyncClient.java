@@ -48,8 +48,9 @@ import io.agora.syncmanager.rtm.utils.UUIDUtil;
 
 public class RethinkSyncClient {
     private static final String LOG_TAG = "RethinkSyncClient";
-    private static final String SOCKET_HOST_NAME = "rethinkdb-msg.bj2.agoralab.co";
+    private static final String SOCKET_HOST_NAME = "rethinkdb-msg.bj2.agoralab.co/v2";
     private static final String SOCKET_URL = "wss://" + SOCKET_HOST_NAME;
+    private static final String GET_ROOM_LIST_OBJ_TYPE = "room";
 
     private static final int ERROR_OK = 0;
     private static final int ERROR_URL_FORMAT = -1000;
@@ -65,7 +66,8 @@ public class RethinkSyncClient {
     private volatile int connectRetryCount = 0;
 
     private String appId;
-    private String channelName;
+    private String roomId;
+    private String sceneName;
 
     private WebSocketClient socketClient;
 
@@ -98,9 +100,10 @@ public class RethinkSyncClient {
     private ICallback<Integer> successCallback;
     private ICallback<Integer> failureCallback;
 
-    public void init(String appId, String channelName, ICallback<Integer> success, ICallback<Integer> failure) {
+    public void init(String appId, String roomId, String sceneName, ICallback<Integer> success, ICallback<Integer> failure) {
         this.appId = appId;
-        this.channelName = channelName;
+        this.roomId = roomId;
+        this.sceneName = sceneName;
         this.successCallback = success;
         this.failureCallback = failure;
         connect(true);
@@ -114,13 +117,13 @@ public class RethinkSyncClient {
         }
     }
 
-    public void add(String channelName,
+    public void add(String objType,
                     Object data,
                     String objectId,
                     ICallback<Attribute> onSuccess,
                     ICallback<SyncManagerException> onError) {
         String uuid = UUIDUtil.uuid();
-        writeData(uuid, channelName, data, objectId, SocketType.send, true,
+        writeData(uuid, objType, data, objectId, SocketType.send, true,
                 new CallbackHandler(uuid, SocketType.send) {
                     @Override
                     boolean handleResult(int code, String message) {
@@ -143,14 +146,14 @@ public class RethinkSyncClient {
                 });
     }
 
-    public void update(String channelName,
+    public void update(String objType,
                        Object data,
                        String objectId,
                        ICallback<Attribute> onSuccess,
                        ICallback<SyncManagerException> onError
     ) {
         String uuid = UUIDUtil.uuid();
-        writeData(uuid, channelName, data, objectId, SocketType.send, false,
+        writeData(uuid, objType, data, objectId, SocketType.send, false,
                 new CallbackHandler(uuid, SocketType.send) {
                     @Override
                     boolean handleResult(int code, String message) {
@@ -174,11 +177,11 @@ public class RethinkSyncClient {
     }
 
 
-    public void query(String channelName,
+    public void query(String objType,
                       ICallback<List<Attribute>> onSuccess,
                       ICallback<SyncManagerException> onError) {
         String uuid = UUIDUtil.uuid();
-        writeData(uuid, channelName, null, "", SocketType.query, false,
+        writeData(uuid, objType, null, "", SocketType.query, false,
                 new CallbackHandler(uuid, SocketType.query) {
                     @Override
                     boolean handleResult(int code, String message) {
@@ -201,14 +204,14 @@ public class RethinkSyncClient {
                 });
     }
 
-    public void subscribe(String channelName,
+    public void subscribe(String objType,
                           ICallback<Attribute> onCreate,
                           ICallback<List<Attribute>> onUpdate,
                           ICallback<List<String>> onDelete,
                           ICallback<SyncManagerException> onError,
                           Object tag) {
         String requestId = UUIDUtil.uuid();
-        writeData(requestId, channelName, null, "", SocketType.subscribe, false,
+        writeData(requestId, objType, null, "", SocketType.subscribe, false,
                 new CallbackHandler(requestId, SocketType.subscribe, tag, -1) {
                     @Override
                     void handleLocalCreate(Attribute attribute) {
@@ -274,17 +277,16 @@ public class RethinkSyncClient {
                 });
     }
 
-    public void unsubscribe(String channelName, Object tag) {
-
-
+    public void unsubscribe(String objType,
+                            Object tag) {
         List<String> keys = new ArrayList<>();
-        List<String> channelNames = new ArrayList<>();
+        List<String> objTypes = new ArrayList<>();
 
         synchronized (callbackHandlers) {
             for (String key : callbackHandlers.keySet()) {
                 CallbackHandler handler = callbackHandlers.get(key);
                 if (handler == null
-                        || (!TextUtils.isEmpty(handler.channelName) && handler.channelName.startsWith(channelName))
+                        || (!TextUtils.isEmpty(handler.objType) && handler.objType.startsWith(objType))
                         || (tag != null && handler.tag == tag)) {
                     keys.add(key);
                 }
@@ -293,19 +295,19 @@ public class RethinkSyncClient {
             for (String key : keys) {
                 CallbackHandler remove = callbackHandlers.remove(key);
                 if (remove != null) {
-                    channelNames.add(remove.channelName);
+                    objTypes.add(remove.objType);
                 }
             }
         }
 
 
-        for (String name : channelNames) {
+        for (String type : objTypes) {
             String requestId = UUIDUtil.uuid();
-            writeData(requestId, name, null, "", SocketType.unsubsribe, false, null);
+            writeData(requestId, type, null, "", SocketType.unsubsribe, false, null);
         }
     }
 
-    public void delete(String channelName,
+    public void delete(String objType,
                        List<String> objectIds,
                        ICallback<Void> onSuccess,
                        ICallback<SyncManagerException> onError) {
@@ -314,7 +316,10 @@ public class RethinkSyncClient {
 
         Map<String, Object> socketMsg = new HashMap<>();
         socketMsg.put("appId", appId);
-        socketMsg.put("channelName", channelName);
+        socketMsg.put("sceneName", sceneName);
+        socketMsg.put("roomId", roomId);
+        socketMsg.put("objVal", "");
+        socketMsg.put("objType", objType);
         socketMsg.put("action", SocketType.deleteProp.name());
         socketMsg.put("requestId", requestId);
         socketMsg.put("props", objectIds);
@@ -340,7 +345,7 @@ public class RethinkSyncClient {
                     return true;
                 }
             };
-            handler.channelName = channelName;
+            handler.objType = objType;
             synchronized (callbackHandlers) {
                 callbackHandlers.put(requestId, handler);
             }
@@ -355,6 +360,58 @@ public class RethinkSyncClient {
         }
     }
 
+    public void syncRoom(
+            ICallback<List<Attribute>> onSuccess,
+            ICallback<SyncManagerException> onError
+    ) {
+        // TODO
+    }
+
+    public void getRoomList(ICallback<List<Attribute>> onSuccess,
+                            ICallback<SyncManagerException> onError) {
+        String requestId = UUIDUtil.uuid();
+
+        Map<String, Object> socketMsg = new HashMap<>();
+        socketMsg.put("appId", appId);
+        socketMsg.put("sceneName", sceneName);
+        socketMsg.put("action", SocketType.getRoomList.name());
+        socketMsg.put("requestId", requestId);
+
+        if (socketClient != null && socketClient.isOpen()) {
+            CallbackHandler handler = new CallbackHandler(requestId, SocketType.getRoomList) {
+                @Override
+                boolean handleResult(int code, String message) {
+                    if (code != 0) {
+                        if (onError != null) {
+                            onError.onCallback(new SyncManagerException(code, message));
+                        }
+                        return true;
+                    }
+                    return false;
+                }
+
+                @Override
+                boolean handleAttrs(SocketType type, JSONObject data, List<Attribute> attributes) {
+                    if (onSuccess != null) {
+                        onSuccess.onCallback(attributes);
+                    }
+                    return true;
+                }
+            };
+            handler.objType = GET_ROOM_LIST_OBJ_TYPE;
+            synchronized (callbackHandlers) {
+                callbackHandlers.put(requestId, handler);
+            }
+
+            String text = gson.toJson(socketMsg);
+            Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+            socketClient.send(text);
+        } else {
+            if (onError != null) {
+                onError.onCallback(new SyncManagerException(ERROR_SOCKET_CLOSED, "socket client is closed. " + socketClient));
+            }
+        }
+    }
 
     private void connect(boolean lock) {
         disconnect();
@@ -381,7 +438,7 @@ public class RethinkSyncClient {
                     for (String key : callbackHandlers.keySet()) {
                         CallbackHandler handler = callbackHandlers.get(key);
                         if (handler != null && handler.type == SocketType.subscribe) {
-                            writeData(handler.requestId, handler.channelName, null, "", SocketType.subscribe, false, handler);
+                            writeData(handler.requestId, handler.objType, null, "", SocketType.subscribe, false, handler);
                         }
                     }
                 }
@@ -480,16 +537,19 @@ public class RethinkSyncClient {
     private void dealSocketMessage(String message) throws JSONException {
         JSONObject dict = new JSONObject(message);
         String action = dict.optString("action");
-
+        String objType;
         if (action.equals(SocketType.ping.name())) {
             synchronized (heartTimerLock) {
                 heartLastPong = System.nanoTime();
             }
             return;
+        } else if (action.equals(SocketType.getRoomList.name()) || action.equals(SocketType.syncRoom.name())) {
+            objType = GET_ROOM_LIST_OBJ_TYPE;
+        } else {
+            objType = dict.optString("objType");
         }
 
         String requestId = dict.optString("requestId");
-        String channelName = dict.optString("channelName");
         int code = dict.optInt("code");
         String msg = dict.optString("msg");
 
@@ -497,17 +557,16 @@ public class RethinkSyncClient {
 
         synchronized (callbackHandlers) {
             CallbackHandler cb = callbackHandlers.get(requestId);
-            if (cb != null && channelName.equals(cb.channelName)) {
+            if (cb != null && objType.equals(cb.objType)) {
                 handlers.add(cb);
             } else {
                 for (String key : callbackHandlers.keySet()) {
                     CallbackHandler h = callbackHandlers.get(key);
-                    if (h != null && channelName.equals(h.channelName) && h.type == SocketType.subscribe) {
+                    if (h != null && objType.equals(h.objType) && h.type == SocketType.subscribe) {
                         handlers.add(h);
                     }
                 }
             }
-
         }
 
         for (CallbackHandler handler : handlers) {
@@ -575,7 +634,7 @@ public class RethinkSyncClient {
     }
 
     private void writeData(String requestId,
-                           String channelName,
+                           String objType,
                            Object params,
                            String objectId,
                            SocketType type,
@@ -597,9 +656,9 @@ public class RethinkSyncClient {
                 if (TextUtils.isEmpty(objectId)) {
                     boolean contain = propsValuesMap.containsKey("objectId");
                     if (!contain) {
-                        propsValuesMap.put("objectId", channelName);
+                        propsValuesMap.put("objectId", objType);
                     }
-                    propsId = channelName;
+                    propsId = objType;
                 }
                 propsValues = gson.toJson(propsValuesMap);
 
@@ -607,7 +666,7 @@ public class RethinkSyncClient {
             } catch (JSONException e) {
                 if (params instanceof String) {
                     if (TextUtils.isEmpty(objectId)) {
-                        propsId = channelName;
+                        propsId = objType;
                     }
                     propsValues = (String) params;
                 } else {
@@ -621,7 +680,10 @@ public class RethinkSyncClient {
 
         Map<String, Object> socketMsg = new HashMap<>();
         socketMsg.put("appId", appId);
-        socketMsg.put("channelName", channelName);
+        socketMsg.put("sceneName", sceneName);
+        socketMsg.put("roomId", roomId);
+        socketMsg.put("objVal", "");
+        socketMsg.put("objType", objType);
         socketMsg.put("action", type.name());
         socketMsg.put("requestId", requestId);
 
@@ -640,7 +702,7 @@ public class RethinkSyncClient {
 
         if (socketClient != null && socketClient.isOpen()) {
             if (handler != null) {
-                handler.channelName = channelName;
+                handler.objType = objType;
                 handler.propsId = propsId;
                 handler.propsValue = propsValues;
                 synchronized (callbackHandlers) {
@@ -655,7 +717,7 @@ public class RethinkSyncClient {
                 synchronized (callbackHandlers) {
                     for (String key : callbackHandlers.keySet()) {
                         CallbackHandler ch = callbackHandlers.get(key);
-                        if (ch != null && channelName.equals(ch.channelName)) {
+                        if (ch != null && objType.equals(ch.objType)) {
                             ch.handleLocalCreate(new Attribute(propsId, propsValues));
                         }
                     }
@@ -696,7 +758,8 @@ public class RethinkSyncClient {
                                         HashMap<Object, Object> params = new HashMap<>();
                                         params.put("action", SocketType.ping.name());
                                         params.put("appId", appId);
-                                        params.put("channelName", channelName);
+                                        params.put("roomId", roomId);
+                                        params.put("sceneName", sceneName);
                                         params.put("requestId", UUID.randomUUID().toString());
 
                                         String text = gson.toJson(params);
@@ -737,7 +800,7 @@ public class RethinkSyncClient {
         // use to check if the callback is expired or not
         final long ts;
 
-        String channelName, propsId, propsValue;
+        String objType, propsId, propsValue;
 
         CallbackHandler(String requestId, SocketType type) {
             this(requestId, type, null);
@@ -778,7 +841,7 @@ public class RethinkSyncClient {
     }
 
     enum SocketType {
-        send, subscribe, unsubsribe, query, deleteProp, ping;
+        send, subscribe, unsubsribe, query, deleteProp, ping, syncRoom, getRoomList;
     }
 
     static class Attribute implements IObject {
