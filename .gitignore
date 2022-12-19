@@ -1,0 +1,4 @@
+# Android Profiling
+.gradle/
+.idea/
+rtmSyncManager/build
