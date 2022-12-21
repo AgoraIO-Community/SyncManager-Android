@@ -48,9 +48,10 @@ import io.agora.syncmanager.rtm.utils.UUIDUtil;
 
 public class RethinkSyncClient {
     private static final String LOG_TAG = "RethinkSyncClient";
-    private static final String SOCKET_HOST_NAME = "rethinkdb-msg.bj2.agoralab.co/v2";
+    private static final String SOCKET_HOST_NAME = "test-rethinkdb-msg.bj2.agoralab.co/v2";
     private static final String SOCKET_URL = "wss://" + SOCKET_HOST_NAME;
     private static final String GET_ROOM_LIST_OBJ_TYPE = "room";
+    private static final String DELETE_ROOM_OBJ_TYPE = "deleteRoom";
 
     private static final int ERROR_OK = 0;
     private static final int ERROR_URL_FORMAT = -1000;
@@ -105,9 +106,8 @@ public class RethinkSyncClient {
     private ICallback<Integer> successCallback;
     private ICallback<Integer> failureCallback;
 
-    public void init(String appId, String roomId, String sceneName, ICallback<Integer> success, ICallback<Integer> failure) {
+    public void init(String appId, String sceneName, ICallback<Integer> success, ICallback<Integer> failure) {
         this.appId = appId;
-        this.roomId = roomId;
         this.sceneName = sceneName;
         this.successCallback = success;
         this.failureCallback = failure;
@@ -120,6 +120,10 @@ public class RethinkSyncClient {
         synchronized (callbackHandlers) {
             callbackHandlers.clear();
         }
+    }
+
+    public void setRoomId(String roomId) {
+        this.roomId = roomId;
     }
 
     public void add(String objType,
@@ -368,13 +372,6 @@ public class RethinkSyncClient {
         }
     }
 
-    public void syncRoom(
-            ICallback<List<Attribute>> onSuccess,
-            ICallback<SyncManagerException> onError
-    ) {
-        // TODO
-    }
-
     public void getRoomList(ICallback<List<Attribute>> onSuccess,
                             ICallback<SyncManagerException> onError) {
         String requestId = UUIDUtil.uuid();
@@ -407,6 +404,53 @@ public class RethinkSyncClient {
                 }
             };
             handler.objType = GET_ROOM_LIST_OBJ_TYPE;
+            synchronized (callbackHandlers) {
+                callbackHandlers.put(requestId, handler);
+            }
+
+            String text = gson.toJson(socketMsg);
+            Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+            socketClient.send(text);
+        } else {
+            if (onError != null) {
+                onError.onCallback(new SyncManagerException(ERROR_SOCKET_CLOSED, "socket client is closed. " + socketClient));
+            }
+        }
+    }
+
+    public void deleteRoom(ICallback<Void> onSuccess,
+                            ICallback<SyncManagerException> onError) {
+        String requestId = UUIDUtil.uuid();
+
+        Map<String, Object> socketMsg = new HashMap<>();
+        socketMsg.put("appId", appId);
+        socketMsg.put("sceneName", sceneName);
+        socketMsg.put("roomId", roomId);
+        socketMsg.put("action", SocketType.deleteRoom.name());
+        socketMsg.put("requestId", requestId);
+
+        if (socketClient != null && socketClient.isOpen()) {
+            CallbackHandler handler = new CallbackHandler(requestId, SocketType.deleteRoom) {
+                @Override
+                boolean handleResult(int code, String message) {
+                    if (code != 0) {
+                        if (onError != null) {
+                            onError.onCallback(new SyncManagerException(code, message));
+                        }
+                    } else {
+                        if (onSuccess != null) {
+                            onSuccess.onCallback(null);
+                        }
+                    }
+                    return true;
+                }
+
+                @Override
+                boolean handleAttrs(SocketType type, JSONObject data, List<Attribute> attributes) {
+                    return true;
+                }
+            };
+            handler.objType = DELETE_ROOM_OBJ_TYPE;
             synchronized (callbackHandlers) {
                 callbackHandlers.put(requestId, handler);
             }
@@ -561,6 +605,8 @@ public class RethinkSyncClient {
             return;
         } else if (action.equals(SocketType.getRoomList.name())) {
             objType = GET_ROOM_LIST_OBJ_TYPE;
+        } else if (action.equals(SocketType.deleteRoom.name())) {
+            objType = DELETE_ROOM_OBJ_TYPE;
         } else {
             objType = dict.optString("objType");
         }
@@ -953,7 +999,7 @@ public class RethinkSyncClient {
     }
 
     enum SocketType {
-        send, subscribe, unsubsribe, query, deleteProp, ping, syncRoom, getRoomList;
+        send, subscribe, unsubsribe, query, deleteProp, ping, syncRoom, getRoomList, deleteRoom;
     }
 
     static class Attribute implements IObject {
