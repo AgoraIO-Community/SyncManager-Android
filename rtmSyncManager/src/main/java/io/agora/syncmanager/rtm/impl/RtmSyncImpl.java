@@ -214,6 +214,11 @@ public class RtmSyncImpl implements ISyncManager {
     }
 
     @Override
+    public void deleteScene(Sync.Callback callback) {
+
+    }
+
+    @Override
     public void get(DocumentReference reference, Sync.DataItemCallback callback) {
         if (this.majorChannels.containsKey(reference.getParent())) {
             String majorChannel = reference.getParent();
@@ -621,6 +626,12 @@ public class RtmSyncImpl implements ISyncManager {
         // 3. move joined channels cache.
         majorChannels.remove(id);
     }
+
+    @Override
+    public void subscribeScene(SceneReference reference, Sync.EventListener listener) { }
+
+    @Override
+    public void unsubscribeScene(SceneReference reference, Sync.EventListener listener) { }
 
     private RtmClientListener iEventListener = new RtmClientListener() {
         @Override

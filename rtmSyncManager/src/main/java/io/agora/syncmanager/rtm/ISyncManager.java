@@ -12,6 +12,8 @@ public interface ISyncManager {
 
     void getScenes(Sync.DataListCallback callback);
 
+    void deleteScene(Sync.Callback callback);
+
     void get(DocumentReference reference, Sync.DataItemCallback callback);
 
     void get(DocumentReference reference, String key, Sync.DataItemCallback callback);
@@ -41,6 +43,10 @@ public interface ISyncManager {
     void subscribe(CollectionReference reference, Sync.EventListener listener);
 
     void unsubscribe(String id, Sync.EventListener listener);
+
+    void subscribeScene(SceneReference reference, Sync.EventListener listener);
+
+    void unsubscribeScene(SceneReference reference, Sync.EventListener listener);
 
     void destroy();
 

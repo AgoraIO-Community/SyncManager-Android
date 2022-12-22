@@ -29,9 +29,9 @@ public class RethinkSyncImpl implements ISyncManager {
 
     private final List<RethinkSyncClient.Attribute> cacheData = new ArrayList<>();
 
-    public RethinkSyncImpl(Context context, Map<String, String> params, Sync.Callback callback) {
-        appId = params.get(APP_ID);
-        mSceneName = params.get(DEFAULT_SCENE_NAME_PARAM);
+    public RethinkSyncImpl(Context context, Sync.RethinkConfig config, Sync.Callback callback) {
+        appId = config.appId;
+        mSceneName = config.sceneName;
         assert appId != null;
         assert mSceneName != null;
         client = new RethinkSyncClient();
@@ -71,6 +71,11 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void getScenes(Sync.DataListCallback callback) {
         client.getRoomList(ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
+    }
+
+    @Override
+    public void deleteScene(Sync.Callback callback) {
+        client.deleteRoom(ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
@@ -234,6 +239,29 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void unsubscribe(String id, Sync.EventListener listener) {
         client.unsubscribe(id, listener);
+    }
+
+    @Override
+    public void subscribeScene(SceneReference reference, Sync.EventListener listener) {
+        client.subscribe(GET_ROOM_LIST_OBJ_TYPE,
+                listener::onCreated,
+                ret -> {
+                    for (RethinkSyncClient.Attribute attribute : ret) {
+                        listener.onUpdated(attribute);
+                    }
+                },
+                ret -> {
+                    for (String objectId : ret) {
+                        listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+                    }
+                },
+                listener::onSubscribeError,
+                listener);
+    }
+
+    @Override
+    public void unsubscribeScene(SceneReference reference, Sync.EventListener listener) {
+        client.unsubscribe(GET_ROOM_LIST_OBJ_TYPE, listener);
     }
 
     @Override
