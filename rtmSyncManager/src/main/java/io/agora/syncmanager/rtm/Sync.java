@@ -16,16 +16,6 @@ import io.agora.syncmanager.rtm.impl.RtmSyncImpl;
  */
 public final class Sync {
 
-    public static class RethinkConfig {
-        public String appId;
-        public String sceneName;
-
-        public RethinkConfig(String appId, String sceneName) {
-            this.sceneName = sceneName;
-            this.appId = appId;
-        }
-    }
-
     private volatile static Sync instance;
 
     private Sync() {

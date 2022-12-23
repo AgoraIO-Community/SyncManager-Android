@@ -10,6 +10,7 @@ import java.util.Map;
 import io.agora.syncmanager.rtm.CollectionReference;
 import io.agora.syncmanager.rtm.DocumentReference;
 import io.agora.syncmanager.rtm.ISyncManager;
+import io.agora.syncmanager.rtm.RethinkConfig;
 import io.agora.syncmanager.rtm.Scene;
 import io.agora.syncmanager.rtm.SceneReference;
 import io.agora.syncmanager.rtm.Sync;
@@ -29,7 +30,7 @@ public class RethinkSyncImpl implements ISyncManager {
 
     private final List<RethinkSyncClient.Attribute> cacheData = new ArrayList<>();
 
-    public RethinkSyncImpl(Context context, Sync.RethinkConfig config, Sync.Callback callback) {
+    public RethinkSyncImpl(Context context, RethinkConfig config, Sync.Callback callback) {
         appId = config.appId;
         mSceneName = config.sceneName;
         assert appId != null;
