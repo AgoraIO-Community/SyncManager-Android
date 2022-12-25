@@ -33,13 +33,13 @@ public final class Sync {
 
     private ISyncManager mISyncManager;
 
-    public void init(Context context, RethinkConfig config, Callback callback) {
-        mISyncManager = new RethinkSyncImpl(context, config, callback);
+    public void init(RethinkConfig config, Callback callback) {
+        mISyncManager = new RethinkSyncImpl(config, callback);
     }
 
-    public void init(Context context, Map<String, String> params, Callback callback) {
-        mISyncManager = new RtmSyncImpl(context, params, callback);
-    }
+//    public void init(Context context, Map<String, String> params, Callback callback) {
+//        mISyncManager = new RtmSyncImpl(context, params, callback);
+//    }
 
     public void destroy(){
         mISyncManager.destroy();
@@ -57,8 +57,8 @@ public final class Sync {
         mISyncManager.getScenes(callback);
     }
 
-    public void deleteScene(Callback callback) {
-        mISyncManager.deleteScene(callback);
+    public void deleteScene(String sceneId, Callback callback) {
+        mISyncManager.deleteScene(sceneId, callback);
     }
 
     public void get(DocumentReference reference, Sync.DataItemCallback callback) {

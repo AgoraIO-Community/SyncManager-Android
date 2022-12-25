@@ -12,7 +12,7 @@ public interface ISyncManager {
 
     void getScenes(Sync.DataListCallback callback);
 
-    void deleteScene(Sync.Callback callback);
+    void deleteScene(String sceneId, Sync.Callback callback);
 
     void get(DocumentReference reference, Sync.DataItemCallback callback);
 

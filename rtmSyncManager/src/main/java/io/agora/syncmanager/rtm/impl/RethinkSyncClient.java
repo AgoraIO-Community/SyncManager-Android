@@ -67,7 +67,7 @@ public class RethinkSyncClient {
     private volatile int connectRetryCount = 0;
 
     private String appId;
-    private String roomId;
+    private String channelName;
     private String sceneName;
 
     private WebSocketClient socketClient;
@@ -122,17 +122,17 @@ public class RethinkSyncClient {
         }
     }
 
-    public void setRoomId(String roomId) {
-        this.roomId = roomId;
-    }
-
-    public void add(String objType,
+    public void add(String roomId,
+                    String objType,
                     Object data,
                     String objectId,
                     ICallback<Attribute> onSuccess,
                     ICallback<SyncManagerException> onError) {
+        if (objType.equals(GET_ROOM_LIST_OBJ_TYPE)) {
+            channelName = roomId;
+        }
         String uuid = UUIDUtil.uuid();
-        writeData(uuid, objType, data, objectId, SocketType.send, true,
+        writeData(roomId, uuid, objType, data, objectId, SocketType.send, true,
                 new CallbackHandler(uuid, SocketType.send) {
                     @Override
                     boolean handleResult(int code, String message) {
@@ -142,9 +142,6 @@ public class RethinkSyncClient {
                             }
                         } else {
                             if (onSuccess != null) {
-                                if (objType.equals(GET_ROOM_LIST_OBJ_TYPE)) {
-                                    startSyncRoom(30);
-                                }
                                 onSuccess.onCallback(new Attribute(propsId, propsValue));
                             }
                         }
@@ -158,14 +155,15 @@ public class RethinkSyncClient {
                 });
     }
 
-    public void update(String objType,
+    public void update(String roomId,
+                       String objType,
                        Object data,
                        String objectId,
                        ICallback<Attribute> onSuccess,
                        ICallback<SyncManagerException> onError
     ) {
         String uuid = UUIDUtil.uuid();
-        writeData(uuid, objType, data, objectId, SocketType.send, false,
+        writeData(roomId, uuid, objType, data, objectId, SocketType.send, false,
                 new CallbackHandler(uuid, SocketType.send) {
                     @Override
                     boolean handleResult(int code, String message) {
@@ -189,11 +187,12 @@ public class RethinkSyncClient {
     }
 
 
-    public void query(String objType,
+    public void query(String roomId,
+                      String objType,
                       ICallback<List<Attribute>> onSuccess,
                       ICallback<SyncManagerException> onError) {
         String uuid = UUIDUtil.uuid();
-        writeData(uuid, objType, null, "", SocketType.query, false,
+        writeData(roomId, uuid, objType, null, "", SocketType.query, false,
                 new CallbackHandler(uuid, SocketType.query) {
                     @Override
                     boolean handleResult(int code, String message) {
@@ -216,14 +215,15 @@ public class RethinkSyncClient {
                 });
     }
 
-    public void subscribe(String objType,
+    public void subscribe(String roomId,
+                          String objType,
                           ICallback<Attribute> onCreate,
                           ICallback<List<Attribute>> onUpdate,
                           ICallback<List<String>> onDelete,
                           ICallback<SyncManagerException> onError,
                           Object tag) {
         String requestId = UUIDUtil.uuid();
-        writeData(requestId, objType, null, "", SocketType.subscribe, false,
+        writeData(roomId, requestId, objType, null, "", SocketType.subscribe, false,
                 new CallbackHandler(requestId, SocketType.subscribe, tag, -1) {
                     @Override
                     void handleLocalCreate(Attribute attribute) {
@@ -289,7 +289,8 @@ public class RethinkSyncClient {
                 });
     }
 
-    public void unsubscribe(String objType,
+    public void unsubscribe(String roomId,
+                            String objType,
                             Object tag) {
         List<String> keys = new ArrayList<>();
         List<String> objTypes = new ArrayList<>();
@@ -315,11 +316,12 @@ public class RethinkSyncClient {
 
         for (String type : objTypes) {
             String requestId = UUIDUtil.uuid();
-            writeData(requestId, type, null, "", SocketType.unsubsribe, false, null);
+            writeData(roomId, requestId, type, null, "", SocketType.unsubsribe, false, null);
         }
     }
 
-    public void delete(String objType,
+    public void delete(String roomId,
+                       String objType,
                        List<String> objectIds,
                        ICallback<Void> onSuccess,
                        ICallback<SyncManagerException> onError) {
@@ -418,8 +420,9 @@ public class RethinkSyncClient {
         }
     }
 
-    public void deleteRoom(ICallback<Void> onSuccess,
-                            ICallback<SyncManagerException> onError) {
+    public void deleteRoom(String roomId,
+                           ICallback<Void> onSuccess,
+                           ICallback<SyncManagerException> onError) {
         String requestId = UUIDUtil.uuid();
 
         Map<String, Object> socketMsg = new HashMap<>();
@@ -490,7 +493,7 @@ public class RethinkSyncClient {
                     for (String key : callbackHandlers.keySet()) {
                         CallbackHandler handler = callbackHandlers.get(key);
                         if (handler != null && handler.type == SocketType.subscribe) {
-                            writeData(handler.requestId, handler.objType, null, "", SocketType.subscribe, false, handler);
+                            writeData("", handler.requestId, handler.objType, null, "", SocketType.subscribe, false, handler);
                         }
                     }
                 }
@@ -523,7 +526,6 @@ public class RethinkSyncClient {
             @Override
             public void onClose(int code, String reason, boolean remote) {
                 stopHeartTimer();
-                stopSyncRoom();
                 Log.d(LOG_TAG, "onClose code=" + code + ", reason=" + reason + ", remote=" + remote);
                 if (code != CloseFrame.NORMAL) {
                     synchronized (reconnectHandler) {
@@ -546,7 +548,6 @@ public class RethinkSyncClient {
             @Override
             public void onError(Exception ex) {
                 stopHeartTimer();
-                stopSyncRoom();
                 Log.e(LOG_TAG, ex.toString());
                 if (latch.getCount() != 0) {
                     latch.countDown();
@@ -578,7 +579,6 @@ public class RethinkSyncClient {
 
     private void disconnect() {
         stopHeartTimer();
-        stopSyncRoom();
         synchronized (reconnectHandler) {
             connectRetryCount = 0;
             reconnectHandler.removeCallbacksAndMessages(null);
@@ -736,7 +736,8 @@ public class RethinkSyncClient {
         }
     }
 
-    private void writeData(String requestId,
+    private void writeData(String roomId,
+                           String requestId,
                            String objType,
                            Object params,
                            String objectId,
@@ -861,7 +862,7 @@ public class RethinkSyncClient {
                                         HashMap<Object, Object> params = new HashMap<>();
                                         params.put("action", SocketType.ping.name());
                                         params.put("appId", appId);
-                                        params.put("roomId", roomId);
+                                        params.put("roomId", channelName);
                                         params.put("sceneName", sceneName);
                                         params.put("requestId", UUID.randomUUID().toString());
 
@@ -891,60 +892,60 @@ public class RethinkSyncClient {
         }
     }
 
-    private void startSyncRoom(long intervalS) {
-        long connectionLostTimeout = TimeUnit.SECONDS.toNanos(intervalS);
-        synchronized (syncRoomTimerLock) {
-            stopSyncRoom();
-            syncRoomLastPong = System.nanoTime();
-            syncRoomTimer = Executors
-                    .newSingleThreadScheduledExecutor(new NamedThreadFactory("connectionLostChecker_syncRoom"));
-            syncRoomFuture = syncRoomTimer
-                    .scheduleAtFixedRate(
-                            () -> {
-                                long minimumPongTime;
-                                synchronized (syncRoomTimerLock) {
-                                    minimumPongTime = (long) (System.nanoTime() - (connectionLostTimeout * 1.5));
-                                }
-                                if (socketClient == null) {
-                                    return;
-                                }
-                                if (syncRoomLastPong < minimumPongTime) {
-                                    socketClient.closeConnection(CloseFrame.ABNORMAL_CLOSE,
-                                            "The connection was closed because the other endpoint did not respond with a pong in time.");
-                                } else {
-                                    if (socketClient.isOpen()) {
-                                        HashMap<Object, Object> params = new HashMap<>();
-                                        params.put("action", SocketType.syncRoom.name());
-                                        params.put("appId", appId);
-                                        params.put("roomId", roomId);
-                                        params.put("sceneName", sceneName);
-                                        params.put("requestId", UUID.randomUUID().toString());
+//    private void startSyncRoom(long intervalS) {
+//        long connectionLostTimeout = TimeUnit.SECONDS.toNanos(intervalS);
+//        synchronized (syncRoomTimerLock) {
+//            stopSyncRoom();
+//            syncRoomLastPong = System.nanoTime();
+//            syncRoomTimer = Executors
+//                    .newSingleThreadScheduledExecutor(new NamedThreadFactory("connectionLostChecker_syncRoom"));
+//            syncRoomFuture = syncRoomTimer
+//                    .scheduleAtFixedRate(
+//                            () -> {
+//                                long minimumPongTime;
+//                                synchronized (syncRoomTimerLock) {
+//                                    minimumPongTime = (long) (System.nanoTime() - (connectionLostTimeout * 1.5));
+//                                }
+//                                if (socketClient == null) {
+//                                    return;
+//                                }
+//                                if (syncRoomLastPong < minimumPongTime) {
+//                                    socketClient.closeConnection(CloseFrame.ABNORMAL_CLOSE,
+//                                            "The connection was closed because the other endpoint did not respond with a pong in time.");
+//                                } else {
+//                                    if (socketClient.isOpen()) {
+//                                        HashMap<Object, Object> params = new HashMap<>();
+//                                        params.put("action", SocketType.syncRoom.name());
+//                                        params.put("appId", appId);
+//                                        params.put("roomId", roomId);
+//                                        params.put("sceneName", sceneName);
+//                                        params.put("requestId", UUID.randomUUID().toString());
+//
+//                                        String text = gson.toJson(params);
+//                                        Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+//                                        socketClient.send(text);
+//                                    } else {
+//                                        Log.e(LOG_TAG, "Trying to ping a non open connection: {}");
+//                                    }
+//                                }
+//                            },
+//                            connectionLostTimeout,
+//                            connectionLostTimeout,
+//                            TimeUnit.NANOSECONDS);
+//
+//        }
+//    }
 
-                                        String text = gson.toJson(params);
-                                        Log.d(LOG_TAG, "WebSocketClient send message=" + text);
-                                        socketClient.send(text);
-                                    } else {
-                                        Log.e(LOG_TAG, "Trying to ping a non open connection: {}");
-                                    }
-                                }
-                            },
-                            connectionLostTimeout,
-                            connectionLostTimeout,
-                            TimeUnit.NANOSECONDS);
-
-        }
-    }
-
-    private void stopSyncRoom() {
-        if (syncRoomTimer != null) {
-            syncRoomTimer.shutdownNow();
-            syncRoomTimer = null;
-        }
-        if (syncRoomFuture != null) {
-            syncRoomFuture.cancel(false);
-            syncRoomFuture = null;
-        }
-    }
+//    private void stopSyncRoom() {
+//        if (syncRoomTimer != null) {
+//            syncRoomTimer.shutdownNow();
+//            syncRoomTimer = null;
+//        }
+//        if (syncRoomFuture != null) {
+//            syncRoomFuture.cancel(false);
+//            syncRoomFuture = null;
+//        }
+//    }
 
     static abstract class CallbackHandler {
 

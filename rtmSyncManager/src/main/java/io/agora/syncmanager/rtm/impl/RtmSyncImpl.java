@@ -214,7 +214,7 @@ public class RtmSyncImpl implements ISyncManager {
     }
 
     @Override
-    public void deleteScene(Sync.Callback callback) {
+    public void deleteScene(String sceneId, Sync.Callback callback) {
 
     }
 

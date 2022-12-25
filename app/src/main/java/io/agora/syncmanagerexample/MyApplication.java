@@ -13,8 +13,7 @@ public class MyApplication extends Application {
     public void onCreate() {
         super.onCreate();
         //initialize sync manager
-        Sync.Instance().init(this, new RethinkConfig(
-                this.getString(R.string.rtm_appid), this.getString(R.string.default_scene_name)), new Sync.Callback() {
+        Sync.Instance().init(new RethinkConfig(this.getString(R.string.rtm_appid), this.getString(R.string.default_scene_name)), new Sync.Callback() {
             @Override
             public void onSuccess() {
 
