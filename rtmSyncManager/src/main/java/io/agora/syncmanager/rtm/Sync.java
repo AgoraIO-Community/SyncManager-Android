@@ -58,6 +58,10 @@ public final class Sync {
         mISyncManager.getScenes(callback);
     }
 
+    public void subscribeConnectState(ConnectionStateCallback callback){
+        mISyncManager.subscribeConnectState(callback);
+    }
+
     public interface EventListener {
         void onCreated(IObject item);
 
@@ -90,5 +94,13 @@ public final class Sync {
         void onSuccess(List<IObject> result);
 
         void onFail(SyncManagerException exception);
+    }
+
+    public interface ConnectionStateCallback {
+        void onConnectionStateChanged(ConnectionState state);
+    }
+
+    public enum ConnectionState {
+        connecting, open, fail, closed
     }
 }

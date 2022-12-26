@@ -42,7 +42,8 @@ public interface ISyncManager {
 
     void unsubscribe(String id, Sync.EventListener listener);
 
-    void destroy();
+    void subscribeConnectState(Sync.ConnectionStateCallback callback);
 
+    void destroy();
 
 }

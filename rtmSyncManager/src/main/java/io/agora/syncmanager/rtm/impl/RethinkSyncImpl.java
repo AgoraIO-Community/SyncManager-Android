@@ -236,6 +236,27 @@ public class RethinkSyncImpl implements ISyncManager {
     }
 
     @Override
+    public void subscribeConnectState(Sync.ConnectionStateCallback callback) {
+        client.setConnectStateCallback(ret -> {
+            if(callback == null){
+                return;
+            }
+            if(ret == RethinkSyncClient.CONNECT_STATE_CONNECTING){
+                callback.onConnectionStateChanged(Sync.ConnectionState.connecting);
+            }
+            else if(ret == RethinkSyncClient.CONNECT_STATE_OPENED){
+                callback.onConnectionStateChanged(Sync.ConnectionState.open);
+            }
+            else if(ret == RethinkSyncClient.CONNECT_STATE_CLOSED){
+                callback.onConnectionStateChanged(Sync.ConnectionState.closed);
+            }
+            else if(ret == RethinkSyncClient.CONNECT_STATE_FAILED){
+                callback.onConnectionStateChanged(Sync.ConnectionState.fail);
+            }
+        });
+    }
+
+    @Override
     public void destroy() {
         client.release();
     }
