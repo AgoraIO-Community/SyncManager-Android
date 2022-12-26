@@ -109,6 +109,11 @@ public class RtmSyncImpl implements ISyncManager {
     }
 
     @Override
+    public void subscribeConnectState(Sync.ConnectionStateCallback callback) {
+
+    }
+
+    @Override
     public void destroy() {
         this.eventListeners.clear();
         this.majorChannels.clear();

@@ -53,13 +53,18 @@ public class RethinkSyncClient {
     private static final String GET_ROOM_LIST_OBJ_TYPE = "room";
     private static final String DELETE_ROOM_OBJ_TYPE = "deleteRoom";
 
-    private static final int ERROR_OK = 0;
-    private static final int ERROR_URL_FORMAT = -1000;
-    private static final int ERROR_JSON_PARSE = -1001;
-    private static final int ERROR_SOCKET_CLOSED = -1002;
-    private static final int ERROR_SERVER_DATA = -1003;
-    private static final int ERROR_CALLBACK_EXPIRED = -1004;
-    private static final int ERROR_CONNECT_FAILED = -1999;
+    static final int ERROR_OK = 0;
+    static final int ERROR_URL_FORMAT = -1000;
+    static final int ERROR_JSON_PARSE = -1001;
+    static final int ERROR_SOCKET_CLOSED = -1002;
+    static final int ERROR_SERVER_DATA = -1003;
+    static final int ERROR_CALLBACK_EXPIRED = -1004;
+    static final int ERROR_CONNECT_FAILED = -1999;
+
+    static final int CONNECT_STATE_CONNECTING = 2001;
+    static final int CONNECT_STATE_OPENED = 2002;
+    static final int CONNECT_STATE_CLOSED = 2003;
+    static final int CONNECT_STATE_FAILED = 2004;
 
 
     private static final int CONNECT_CLOSE_RETRY_WAIT_MS = 2000;// 2s
@@ -106,6 +111,7 @@ public class RethinkSyncClient {
 
     private ICallback<Integer> successCallback;
     private ICallback<Integer> failureCallback;
+    private ICallback<Integer> connectStateCallback;
 
     public void init(String appId, String sceneName, ICallback<Integer> success, ICallback<Integer> failure) {
         this.appId = appId;
@@ -115,9 +121,13 @@ public class RethinkSyncClient {
         connect(true);
     }
 
+    public void setConnectStateCallback(ICallback<Integer> callback){
+        connectStateCallback = callback;
+    }
+
     public void release() {
         disconnect();
-        successCallback = failureCallback = null;
+        successCallback = failureCallback = connectStateCallback = null;
         synchronized (callbackHandlers) {
             callbackHandlers.clear();
         }
@@ -510,6 +520,10 @@ public class RethinkSyncClient {
             return;
         }
 
+        if (connectStateCallback != null) {
+            connectStateCallback.onCallback(CONNECT_STATE_CONNECTING);
+        }
+
         CountDownLatch latch = new CountDownLatch(1);
 
         socketClient = new WebSocketClient(msgUri) {
@@ -535,6 +549,10 @@ public class RethinkSyncClient {
                 if (successCallback != null) {
                     successCallback.onCallback(ERROR_OK);
                     successCallback = null;
+                }
+
+                if (connectStateCallback != null) {
+                    connectStateCallback.onCallback(CONNECT_STATE_OPENED);
                 }
 
                 if (latch.getCount() != 0) {
@@ -565,6 +583,9 @@ public class RethinkSyncClient {
                             if (failureCallback != null) {
                                 failureCallback.onCallback(ERROR_CONNECT_FAILED);
                             }
+                            if (connectStateCallback != null) {
+                                connectStateCallback.onCallback(CONNECT_STATE_FAILED);
+                            }
                             return;
                         }
                         reconnectHandler.removeCallbacksAndMessages(null);
@@ -572,6 +593,10 @@ public class RethinkSyncClient {
                             Log.d(LOG_TAG, "onClose reconnecting " + connectRetryCount + "...");
                             RethinkSyncClient.this.connect(false);
                         }, CONNECT_CLOSE_RETRY_WAIT_MS);
+                    }
+                } else {
+                    if (connectStateCallback != null) {
+                        connectStateCallback.onCallback(CONNECT_STATE_CLOSED);
                     }
                 }
             }

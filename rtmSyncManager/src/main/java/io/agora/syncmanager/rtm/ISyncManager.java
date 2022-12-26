@@ -50,7 +50,8 @@ public interface ISyncManager {
 
     void unsubscribeScene(SceneReference reference, Sync.EventListener listener);
 
-    void destroy();
+    void subscribeConnectState(Sync.ConnectionStateCallback callback);
 
+    void destroy();
 
 }
