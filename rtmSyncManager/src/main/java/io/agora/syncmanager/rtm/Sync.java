@@ -53,6 +53,10 @@ public final class Sync {
         mISyncManager.joinScene(sceneId, callback);
     }
 
+    public void joinScene(boolean isRoomOwner, @NonNull String sceneId, @Nullable JoinSceneCallback callback) {
+        mISyncManager.joinScene(isRoomOwner, sceneId, callback);
+    }
+
     public void getScenes(DataListCallback callback) {
         mISyncManager.getScenes(callback);
     }

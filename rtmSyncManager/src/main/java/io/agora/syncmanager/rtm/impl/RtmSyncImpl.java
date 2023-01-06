@@ -191,6 +191,11 @@ public class RtmSyncImpl implements ISyncManager {
     }
 
     @Override
+    public void joinScene(boolean isRoomOwner, String sceneId, Sync.JoinSceneCallback callback) {
+
+    }
+
+    @Override
     public void getScenes(Sync.DataListCallback callback) {
         client.getChannelAttributes(mDefaultChannel, new ResultCallback<List<RtmChannelAttribute>>() {
             @Override

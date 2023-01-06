@@ -69,6 +69,7 @@ public class RethinkSyncClient {
     private String appId;
     private String channelName;
     private String sceneName;
+    private boolean isRoomOwner = false;
 
     private WebSocketClient socketClient;
 
@@ -122,6 +123,10 @@ public class RethinkSyncClient {
         }
     }
 
+    public void setIsRoomOwner(boolean isRoomOwner) {
+        this.isRoomOwner = isRoomOwner;
+    }
+
     public void add(String roomId,
                     String objType,
                     Object data,
@@ -130,6 +135,7 @@ public class RethinkSyncClient {
                     ICallback<SyncManagerException> onError) {
         if (objType.equals(GET_ROOM_LIST_OBJ_TYPE)) {
             channelName = roomId;
+            isRoomOwner = true;
         }
         String uuid = UUIDUtil.uuid();
         writeData(roomId, uuid, objType, data, objectId, SocketType.send, true,
@@ -255,6 +261,28 @@ public class RethinkSyncClient {
                     @Override
                     boolean handleAttrs(SocketType type, JSONObject data, List<Attribute> attributes) {
                         if (type == SocketType.send) {
+                            // TODO workaround: isDeleted
+                            if (data.has("isDeleted")) {
+                                boolean isDeleted = data.optBoolean("isDeleted");
+                                String propsUpdate = data.optString("propsUpdate");
+                                if (isDeleted && !TextUtils.isEmpty(propsUpdate) && onDelete != null) {
+                                    try {
+                                        JSONObject jsonObject = new JSONObject(propsUpdate);
+                                        List<String> objIds = new ArrayList<>();
+                                        JSONArray names = jsonObject.names();
+                                        if (objIds != null) {
+                                            for (int i = 0; i < names.length(); i++) {
+                                                objIds.add(names.optString(i));
+                                            }
+                                        }
+                                        onDelete.onCallback(objIds);
+                                        return false;
+                                    } catch (JSONException e) {
+                                        handleResult(ERROR_JSON_PARSE, "propsUpdate parse error");
+                                    }
+                                }
+                            }
+
                             String propsUpdate = data.optString("propsUpdate");
                             if (!TextUtils.isEmpty(propsUpdate) && onUpdate != null) {
                                 try {
@@ -423,6 +451,7 @@ public class RethinkSyncClient {
     public void deleteRoom(String roomId,
                            ICallback<Void> onSuccess,
                            ICallback<SyncManagerException> onError) {
+        isRoomOwner = false;
         String requestId = UUIDUtil.uuid();
 
         Map<String, Object> socketMsg = new HashMap<>();
@@ -488,12 +517,13 @@ public class RethinkSyncClient {
             public void onOpen(ServerHandshake handshakedata) {
                 Log.d(LOG_TAG, "WebSocketClient onOpen status=" + handshakedata.getHttpStatus());
                 startHeartTimer(30);
+                startSyncRoom(15);
 
                 synchronized (callbackHandlers) {
                     for (String key : callbackHandlers.keySet()) {
                         CallbackHandler handler = callbackHandlers.get(key);
-                        if (handler != null && handler.type == SocketType.subscribe) {
-                            writeData("", handler.requestId, handler.objType, null, "", SocketType.subscribe, false, handler);
+                        if (handler != null && handler.type == SocketType.subscribe && channelName != null) {
+                            writeData(channelName, handler.requestId, handler.objType, null, "", SocketType.subscribe, false, handler);
                         }
                     }
                 }
@@ -526,6 +556,7 @@ public class RethinkSyncClient {
             @Override
             public void onClose(int code, String reason, boolean remote) {
                 stopHeartTimer();
+                stopSyncRoom();
                 Log.d(LOG_TAG, "onClose code=" + code + ", reason=" + reason + ", remote=" + remote);
                 if (code != CloseFrame.NORMAL) {
                     synchronized (reconnectHandler) {
@@ -548,6 +579,7 @@ public class RethinkSyncClient {
             @Override
             public void onError(Exception ex) {
                 stopHeartTimer();
+                stopSyncRoom();
                 Log.e(LOG_TAG, ex.toString());
                 if (latch.getCount() != 0) {
                     latch.countDown();
@@ -579,6 +611,7 @@ public class RethinkSyncClient {
 
     private void disconnect() {
         stopHeartTimer();
+        stopSyncRoom();
         synchronized (reconnectHandler) {
             connectRetryCount = 0;
             reconnectHandler.removeCallbacksAndMessages(null);
@@ -646,10 +679,10 @@ public class RethinkSyncClient {
                 continue;
             }
 
-            if (objType.equals(GET_ROOM_LIST_OBJ_TYPE)) {
+            if (objType.equals(GET_ROOM_LIST_OBJ_TYPE) && action.equals(SocketType.getRoomList.name())) {
                 JSONArray data = dict.optJSONArray("data");
                 if (data == null) {
-                    if (handler.handleResult(ERROR_SERVER_DATA, "server not data return. msg: " + message)) {
+                    if (handler.handleResult(ERROR_SERVER_DATA, "The room list is empty.")) {
                         synchronized (callbackHandlers) {
                             callbackHandlers.remove(handler.requestId);
                         }
@@ -892,60 +925,61 @@ public class RethinkSyncClient {
         }
     }
 
-//    private void startSyncRoom(long intervalS) {
-//        long connectionLostTimeout = TimeUnit.SECONDS.toNanos(intervalS);
-//        synchronized (syncRoomTimerLock) {
-//            stopSyncRoom();
-//            syncRoomLastPong = System.nanoTime();
-//            syncRoomTimer = Executors
-//                    .newSingleThreadScheduledExecutor(new NamedThreadFactory("connectionLostChecker_syncRoom"));
-//            syncRoomFuture = syncRoomTimer
-//                    .scheduleAtFixedRate(
-//                            () -> {
-//                                long minimumPongTime;
-//                                synchronized (syncRoomTimerLock) {
-//                                    minimumPongTime = (long) (System.nanoTime() - (connectionLostTimeout * 1.5));
-//                                }
-//                                if (socketClient == null) {
-//                                    return;
-//                                }
-//                                if (syncRoomLastPong < minimumPongTime) {
-//                                    socketClient.closeConnection(CloseFrame.ABNORMAL_CLOSE,
-//                                            "The connection was closed because the other endpoint did not respond with a pong in time.");
-//                                } else {
-//                                    if (socketClient.isOpen()) {
-//                                        HashMap<Object, Object> params = new HashMap<>();
-//                                        params.put("action", SocketType.syncRoom.name());
-//                                        params.put("appId", appId);
-//                                        params.put("roomId", roomId);
-//                                        params.put("sceneName", sceneName);
-//                                        params.put("requestId", UUID.randomUUID().toString());
-//
-//                                        String text = gson.toJson(params);
-//                                        Log.d(LOG_TAG, "WebSocketClient send message=" + text);
-//                                        socketClient.send(text);
-//                                    } else {
-//                                        Log.e(LOG_TAG, "Trying to ping a non open connection: {}");
-//                                    }
-//                                }
-//                            },
-//                            connectionLostTimeout,
-//                            connectionLostTimeout,
-//                            TimeUnit.NANOSECONDS);
-//
-//        }
-//    }
+    private void startSyncRoom(long intervalS) {
+        long connectionLostTimeout = TimeUnit.SECONDS.toNanos(intervalS);
+        synchronized (syncRoomTimerLock) {
+            stopSyncRoom();
+            syncRoomLastPong = System.nanoTime();
+            syncRoomTimer = Executors
+                    .newSingleThreadScheduledExecutor(new NamedThreadFactory("connectionLostChecker_syncRoom"));
+            syncRoomFuture = syncRoomTimer
+                    .scheduleAtFixedRate(
+                            () -> {
+                                long minimumPongTime;
+                                synchronized (syncRoomTimerLock) {
+                                    minimumPongTime = (long) (System.nanoTime() - (connectionLostTimeout * 1.5));
+                                }
+                                if (socketClient == null || (!isRoomOwner) || (channelName == null)) {
+                                    return;
+                                }
+                                if (syncRoomLastPong < minimumPongTime) {
+                                    socketClient.closeConnection(CloseFrame.ABNORMAL_CLOSE,
+                                            "The connection was closed because the other endpoint did not respond with a pong in time.");
+                                } else {
+                                    if (socketClient.isOpen()) {
 
-//    private void stopSyncRoom() {
-//        if (syncRoomTimer != null) {
-//            syncRoomTimer.shutdownNow();
-//            syncRoomTimer = null;
-//        }
-//        if (syncRoomFuture != null) {
-//            syncRoomFuture.cancel(false);
-//            syncRoomFuture = null;
-//        }
-//    }
+                                    HashMap<Object, Object> params = new HashMap<>();
+                                    params.put("action", SocketType.syncRoom.name());
+                                    params.put("appId", appId);
+                                    params.put("roomId", channelName);
+                                    params.put("sceneName", sceneName);
+                                    params.put("requestId", UUID.randomUUID().toString());
+
+                                    String text = gson.toJson(params);
+                                    Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+                                    socketClient.send(text);
+                                    } else {
+                                        Log.e(LOG_TAG, "Trying to ping a non open connection: {}");
+                                    }
+                                }
+                            },
+                            connectionLostTimeout,
+                            connectionLostTimeout,
+                            TimeUnit.NANOSECONDS);
+
+        }
+    }
+
+    private void stopSyncRoom() {
+        if (syncRoomTimer != null) {
+            syncRoomTimer.shutdownNow();
+            syncRoomTimer = null;
+        }
+        if (syncRoomFuture != null) {
+            syncRoomFuture.cancel(false);
+            syncRoomFuture = null;
+        }
+    }
 
     static abstract class CallbackHandler {
 
