@@ -8,9 +8,13 @@ import io.agora.common.annotation.Nullable;
 public interface ISyncManager {
     void joinScene(@NonNull String sceneId,@Nullable Sync.JoinSceneCallback callback);
 
+    void joinScene(boolean isRoomOwner, @NonNull String sceneId,@Nullable Sync.JoinSceneCallback callback);
+
     void createScene(@NonNull Scene room, @Nullable Sync.Callback callback);
 
     void getScenes(Sync.DataListCallback callback);
+
+    void deleteScene(String sceneId, Sync.Callback callback);
 
     void get(DocumentReference reference, Sync.DataItemCallback callback);
 
@@ -41,6 +45,10 @@ public interface ISyncManager {
     void subscribe(CollectionReference reference, Sync.EventListener listener);
 
     void unsubscribe(String id, Sync.EventListener listener);
+
+    void subscribeScene(SceneReference reference, Sync.EventListener listener);
+
+    void unsubscribeScene(SceneReference reference, Sync.EventListener listener);
 
     void destroy();
 

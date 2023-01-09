@@ -110,7 +110,7 @@ public class RoomActivity extends AppCompatActivity implements CompoundButton.On
                 }
             });
             // Step 2: Subscribe room property
-            sceneRef.subscribe(roomEventListener);
+            Sync.Instance().subscribeScene(sceneRef, roomEventListener);
             sceneRef.subscribe("layout", layoutListener);
             // Step 3: Handle Members
             HashMap<String, Object> member = new HashMap<>();

@@ -191,6 +191,11 @@ public class RtmSyncImpl implements ISyncManager {
     }
 
     @Override
+    public void joinScene(boolean isRoomOwner, String sceneId, Sync.JoinSceneCallback callback) {
+
+    }
+
+    @Override
     public void getScenes(Sync.DataListCallback callback) {
         client.getChannelAttributes(mDefaultChannel, new ResultCallback<List<RtmChannelAttribute>>() {
             @Override
@@ -211,6 +216,11 @@ public class RtmSyncImpl implements ISyncManager {
                 callback.onFail(new SyncManagerException(-1, errorInfo.getErrorDescription()));
             }
         });
+    }
+
+    @Override
+    public void deleteScene(String sceneId, Sync.Callback callback) {
+
     }
 
     @Override
@@ -621,6 +631,12 @@ public class RtmSyncImpl implements ISyncManager {
         // 3. move joined channels cache.
         majorChannels.remove(id);
     }
+
+    @Override
+    public void subscribeScene(SceneReference reference, Sync.EventListener listener) { }
+
+    @Override
+    public void unsubscribeScene(SceneReference reference, Sync.EventListener listener) { }
 
     private RtmClientListener iEventListener = new RtmClientListener() {
         @Override

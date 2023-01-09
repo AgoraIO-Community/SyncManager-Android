@@ -1,7 +1,5 @@
 package io.agora.syncmanager.rtm.impl;
 
-import android.content.Context;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -10,6 +8,7 @@ import java.util.Map;
 import io.agora.syncmanager.rtm.CollectionReference;
 import io.agora.syncmanager.rtm.DocumentReference;
 import io.agora.syncmanager.rtm.ISyncManager;
+import io.agora.syncmanager.rtm.RethinkConfig;
 import io.agora.syncmanager.rtm.Scene;
 import io.agora.syncmanager.rtm.SceneReference;
 import io.agora.syncmanager.rtm.Sync;
@@ -18,23 +17,22 @@ import io.agora.syncmanager.rtm.utils.UUIDUtil;
 
 public class RethinkSyncImpl implements ISyncManager {
 
-    private static final String APP_ID = "appid";
-    private static final String DEFAULT_CHANNEL_NAME_PARAM = "defaultChannel";
+    private static final String GET_ROOM_LIST_OBJ_TYPE = "room";
 
     private String appId;
-    private String mDefaultChannel;
+    private String mSceneName;
 
     private RethinkSyncClient client;
 
     private final List<RethinkSyncClient.Attribute> cacheData = new ArrayList<>();
 
-    public RethinkSyncImpl(Context  context, Map<String, String> params, Sync.Callback callback) {
-        appId = params.get(APP_ID);
-        mDefaultChannel = params.get(DEFAULT_CHANNEL_NAME_PARAM);
+    public RethinkSyncImpl(RethinkConfig config, Sync.Callback callback) {
+        appId = config.appId;
+        mSceneName = config.sceneName;
         assert appId != null;
-        assert mDefaultChannel != null;
+        assert mSceneName != null;
         client = new RethinkSyncClient();
-        client.init(appId, mDefaultChannel, ret -> {
+        client.init(appId, mSceneName, ret -> {
             callback.onSuccess();
         }, ret -> {
             callback.onFail(new SyncManagerException(ret, "RethinkSyncClient init error"));
@@ -43,7 +41,7 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void createScene(Scene room, Sync.Callback callback) {
-        client.add(mDefaultChannel, room.toJson(), room.getId(), ret -> callback.onSuccess(), callback::onFail);
+        client.add(room.getId(), GET_ROOM_LIST_OBJ_TYPE, room.toJson(), room.getId(), ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
@@ -66,30 +64,41 @@ public class RethinkSyncImpl implements ISyncManager {
     }
 
     @Override
+    public void joinScene(boolean isRoomOwner, String sceneId, Sync.JoinSceneCallback callback) {
+        client.setIsRoomOwner(isRoomOwner);
+        callback.onSuccess(new SceneReference(this, sceneId, sceneId));
+    }
+
+    @Override
     public void getScenes(Sync.DataListCallback callback) {
-        client.query(mDefaultChannel, ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
+        client.getRoomList(ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
+    }
+
+    @Override
+    public void deleteScene(String sceneId, Sync.Callback callback) {
+        client.deleteRoom(sceneId, ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
     public void get(DocumentReference reference, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? majorChannel : majorChannel + reference.getId();
+        String objType = reference.getId().equals(majorChannel) ? majorChannel : majorChannel + reference.getId();
 
-        client.query(channel, ret -> callback.onSuccess(ret.size() > 0? ret.get(0): null), callback::onFail);
+        client.query(majorChannel, objType, ret -> callback.onSuccess(ret.size() > 0? ret.get(0): null), callback::onFail);
     }
 
     @Override
     public void get(DocumentReference reference, String key, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
-        client.query(channel, ret -> callback.onSuccess(ret.size() > 0? ret.get(0): null), callback::onFail);
+        String objType = reference.getId().equals(majorChannel) ? majorChannel + key : majorChannel + reference.getId();
+        client.query(majorChannel, objType, ret -> callback.onSuccess(ret.size() > 0? ret.get(0): null), callback::onFail);
     }
 
     @Override
     public void get(CollectionReference reference, Sync.DataListCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.query(channel, ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
+        String objType = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
+        client.query(majorChannel, objType, ret -> callback.onSuccess(new ArrayList<>(ret)), callback::onFail);
     }
 
     @Override
@@ -100,28 +109,26 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void add(CollectionReference reference, Object data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.add(channel, data, UUIDUtil.uuid(), callback::onSuccess, callback::onFail);
+        String objType = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
+        client.add(majorChannel, objType, data, UUIDUtil.uuid(), callback::onSuccess, callback::onFail);
     }
 
     @Override
     public void delete(DocumentReference reference, Sync.Callback callback) {
         String majorChannel = reference.getParent();
         if(reference.getId().equals(majorChannel)){
-            String channel = mDefaultChannel;
-
             // remove the scene itself, remove it from scene list
             List<String> list = new ArrayList<>();
             list.add(majorChannel);
-            client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
+            client.deleteRoom(majorChannel, ret -> callback.onSuccess(), callback::onFail);
         }
         else{
             // remove specific property
-            String channel = majorChannel + reference.getId();
+            String objType = majorChannel + reference.getId();
 
             List<String> list = new ArrayList<>();
             list.add(reference.getId());
-            client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
+            client.delete(majorChannel, objType, list, ret -> callback.onSuccess(), callback::onFail);
         }
     }
 
@@ -133,40 +140,40 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void delete(CollectionReference reference, String id, Sync.Callback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
+        String objType = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
         List<String> list = new ArrayList<>();
         list.add(id);
-        client.delete(channel, list, ret -> callback.onSuccess(), callback::onFail);
+        client.delete(majorChannel, objType, list, ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
     public void update(DocumentReference reference, String key, Object data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
+        String objType = reference.getId().equals(majorChannel) ? GET_ROOM_LIST_OBJ_TYPE : majorChannel + reference.getId();
         Map<String, Object> wData = new HashMap<>();
         wData.put(key, data);
-        client.update(channel, wData, majorChannel, callback::onSuccess, callback::onFail);
+        client.update(majorChannel, objType, wData, majorChannel, callback::onSuccess, callback::onFail);
     }
 
     @Override
     public void update(DocumentReference reference, HashMap<String, Object> data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
-        client.update(channel, data, reference.getId(), callback::onSuccess, callback::onFail);
+        String objType = reference.getId().equals(majorChannel) ? GET_ROOM_LIST_OBJ_TYPE : majorChannel + reference.getId();
+        client.update(majorChannel, objType, data, reference.getId(), callback::onSuccess, callback::onFail);
     }
 
     @Override
     public void update(CollectionReference reference, String id, Object data, Sync.Callback callback) {
         String majorChannel = reference.getParent();
-        String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.update(channel, data, id, ret -> callback.onSuccess(), callback::onFail);
+        String objType = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
+        client.update(majorChannel, objType, data, id, ret -> callback.onSuccess(), callback::onFail);
     }
 
     @Override
     public void subscribe(DocumentReference reference, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
-        client.subscribe(channel,
+        String objType = reference.getId().equals(majorChannel) ? GET_ROOM_LIST_OBJ_TYPE : majorChannel + reference.getId();
+        client.subscribe(majorChannel, objType,
                 listener::onCreated,
                 ret -> {
                     for (RethinkSyncClient.Attribute attribute : ret) {
@@ -185,8 +192,8 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void subscribe(DocumentReference reference, String key, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
-        String channel = reference.getId().equals(majorChannel) ? mDefaultChannel : majorChannel + reference.getId();
-        client.subscribe(channel,
+        String objType = reference.getId().equals(majorChannel) ? GET_ROOM_LIST_OBJ_TYPE : majorChannel + reference.getId();
+        client.subscribe(majorChannel, objType,
                 ret ->{
                     if(ret.getId().equals(majorChannel) && ret.toString().contains(key)){
                         listener.onCreated(ret);
@@ -213,8 +220,8 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void subscribe(CollectionReference reference, Sync.EventListener listener) {
         String majorChannel = reference.getParent();
-        String channel = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
-        client.subscribe(channel,
+        String objType = reference.getKey().equals(majorChannel) ? majorChannel : majorChannel + reference.getKey();
+        client.subscribe(majorChannel, objType,
                 listener::onCreated,
                 ret -> {
                     for (RethinkSyncClient.Attribute attribute : ret) {
@@ -232,7 +239,32 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void unsubscribe(String id, Sync.EventListener listener) {
-        client.unsubscribe(id, listener);
+        client.unsubscribe(id, id, listener);
+    }
+
+    @Override
+    public void subscribeScene(SceneReference reference, Sync.EventListener listener) {
+        String majorChannel = reference.getParent();
+        client.subscribe(majorChannel, GET_ROOM_LIST_OBJ_TYPE,
+                listener::onCreated,
+                ret -> {
+                    for (RethinkSyncClient.Attribute attribute : ret) {
+                        listener.onUpdated(attribute);
+                    }
+                },
+                ret -> {
+                    for (String objectId : ret) {
+                        listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+                    }
+                },
+                listener::onSubscribeError,
+                listener);
+    }
+
+    @Override
+    public void unsubscribeScene(SceneReference reference, Sync.EventListener listener) {
+        String majorChannel = reference.getParent();
+        client.unsubscribe(majorChannel, GET_ROOM_LIST_OBJ_TYPE, listener);
     }
 
     @Override
