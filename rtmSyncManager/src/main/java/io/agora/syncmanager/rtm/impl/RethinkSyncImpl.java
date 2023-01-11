@@ -66,7 +66,8 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void joinScene(boolean isRoomOwner, String sceneId, Sync.JoinSceneCallback callback) {
         client.setIsRoomOwner(isRoomOwner);
-        callback.onSuccess(new SceneReference(this, sceneId, sceneId));
+        // query检测当前房间是否存在
+        client.query(sceneId, GET_ROOM_LIST_OBJ_TYPE, ret -> callback.onSuccess(new SceneReference(this, sceneId, sceneId)), callback::onFail);
     }
 
     @Override
@@ -158,7 +159,7 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void update(DocumentReference reference, HashMap<String, Object> data, Sync.DataItemCallback callback) {
         String majorChannel = reference.getParent();
-        String objType = reference.getId().equals(majorChannel) ? GET_ROOM_LIST_OBJ_TYPE : majorChannel + reference.getId();
+        String objType = reference.getId().equals(majorChannel) ? GET_ROOM_LIST_OBJ_TYPE: majorChannel + reference.getId();
         client.update(majorChannel, objType, data, reference.getId(), callback::onSuccess, callback::onFail);
     }
 
@@ -259,6 +260,20 @@ public class RethinkSyncImpl implements ISyncManager {
                 },
                 listener::onSubscribeError,
                 listener);
+//        client.subscribe(majorChannel, mSceneName,
+//                listener::onCreated,
+//                ret -> {
+//                    for (RethinkSyncClient.Attribute attribute : ret) {
+//                        listener.onUpdated(attribute);
+//                    }
+//                },
+//                ret -> {
+//                    for (String objectId : ret) {
+//                        listener.onDeleted(new RethinkSyncClient.Attribute(objectId, ""));
+//                    }
+//                },
+//                listener::onSubscribeError,
+//                listener);
     }
 
     @Override

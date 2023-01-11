@@ -60,6 +60,7 @@ public class RethinkSyncClient {
     static final int ERROR_SERVER_DATA = -1003;
     static final int ERROR_CALLBACK_EXPIRED = -1004;
     static final int ERROR_CONNECT_FAILED = -1999;
+    static final int ERROR_ROOM_NOT_EXIST = -2000;
 
     static final int CONNECT_STATE_CONNECTING = 2001;
     static final int CONNECT_STATE_OPENED = 2002;
@@ -223,6 +224,11 @@ public class RethinkSyncClient {
 
                     @Override
                     boolean handleAttrs(SocketType type, JSONObject data, List<Attribute> attributes) {
+                        // 如果当前房间不存在， 返回错误信息
+                        if (objType.equals(GET_ROOM_LIST_OBJ_TYPE) && attributes.size() == 0 && data.optString("id").equals("")) {
+                            onError.onCallback(new SyncManagerException(ERROR_ROOM_NOT_EXIST, "This room is already expire!"));
+                            return true;
+                        }
                         if (onSuccess != null) {
                             onSuccess.onCallback(attributes);
                         }
