@@ -134,6 +134,10 @@ public class RethinkSyncClient {
         }
     }
 
+    public void setChannelName(String channelName) {
+        this.channelName = channelName;
+    }
+
     public void setIsRoomOwner(boolean isRoomOwner) {
         this.isRoomOwner = isRoomOwner;
     }
@@ -144,10 +148,6 @@ public class RethinkSyncClient {
                     String objectId,
                     ICallback<Attribute> onSuccess,
                     ICallback<SyncManagerException> onError) {
-        if (objType.equals(GET_ROOM_LIST_OBJ_TYPE)) {
-            channelName = roomId;
-            isRoomOwner = true;
-        }
         String uuid = UUIDUtil.uuid();
         writeData(roomId, uuid, objType, data, objectId, SocketType.send, true,
                 new CallbackHandler(uuid, SocketType.send) {
@@ -282,6 +282,7 @@ public class RethinkSyncClient {
                                 boolean isDeleted = data.optBoolean("isDeleted");
                                 String propsUpdate = data.optString("propsUpdate");
                                 if (isDeleted && !TextUtils.isEmpty(propsUpdate) && onDelete != null) {
+                                    isRoomOwner = false;
                                     try {
                                         JSONObject jsonObject = new JSONObject(propsUpdate);
                                         List<String> objIds = new ArrayList<>();

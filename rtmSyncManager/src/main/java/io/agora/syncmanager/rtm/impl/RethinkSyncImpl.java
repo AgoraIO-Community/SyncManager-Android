@@ -41,6 +41,7 @@ public class RethinkSyncImpl implements ISyncManager {
 
     @Override
     public void createScene(Scene room, Sync.Callback callback) {
+        client.setChannelName(room.getId());
         client.add(room.getId(), GET_ROOM_LIST_OBJ_TYPE, room.toJson(), room.getId(), ret -> callback.onSuccess(), callback::onFail);
     }
 
@@ -66,6 +67,9 @@ public class RethinkSyncImpl implements ISyncManager {
     @Override
     public void joinScene(boolean isRoomOwner, String sceneId, Sync.JoinSceneCallback callback) {
         client.setIsRoomOwner(isRoomOwner);
+        if (!isRoomOwner) {
+            client.setChannelName(sceneId);
+        }
         // query检测当前房间是否存在
         client.query(sceneId, GET_ROOM_LIST_OBJ_TYPE, ret -> callback.onSuccess(new SceneReference(this, sceneId, sceneId)), callback::onFail);
     }
