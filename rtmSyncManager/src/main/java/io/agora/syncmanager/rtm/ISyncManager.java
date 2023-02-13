@@ -8,7 +8,7 @@ import io.agora.common.annotation.Nullable;
 public interface ISyncManager {
     void joinScene(@NonNull String sceneId,@Nullable Sync.JoinSceneCallback callback);
 
-    void joinScene(boolean isRoomOwner, @NonNull String sceneId,@Nullable Sync.JoinSceneCallback callback);
+    void joinScene(boolean isRoomOwner, boolean isMainRoom,  @NonNull String sceneId,@Nullable Sync.JoinSceneCallback callback);
 
     void createScene(@NonNull Scene room, @Nullable Sync.Callback callback);
 
