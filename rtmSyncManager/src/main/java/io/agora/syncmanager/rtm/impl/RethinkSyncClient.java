@@ -31,6 +31,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
@@ -280,23 +281,18 @@ public class RethinkSyncClient {
                             // TODO workaround: isDeleted
                             if (data.has("isDeleted")) {
                                 boolean isDeleted = data.optBoolean("isDeleted");
-                                String propsUpdate = data.optString("propsUpdate");
-                                if (isDeleted && !TextUtils.isEmpty(propsUpdate) && onDelete != null) {
-                                    isRoomOwner = false;
-                                    try {
-                                        JSONObject jsonObject = new JSONObject(propsUpdate);
-                                        List<String> objIds = new ArrayList<>();
-                                        JSONArray names = jsonObject.names();
-                                        if (objIds != null) {
-                                            for (int i = 0; i < names.length(); i++) {
-                                                objIds.add(names.optString(i));
-                                            }
-                                        }
-                                        onDelete.onCallback(objIds);
-                                        return false;
-                                    } catch (JSONException e) {
-                                        handleResult(ERROR_JSON_PARSE, "propsUpdate parse error");
+                                String roomId = data.optString("roomId");
+                                if (isDeleted && !TextUtils.isEmpty(roomId) && onDelete != null) {
+                                    Log.d(LOG_TAG, "Room is deleted:" + roomId);
+                                    if (Objects.equals(channelName, roomId)) {
+                                        Log.d(LOG_TAG, "Local Room is deleted:" + roomId);
+                                        isRoomOwner = false;
                                     }
+
+                                    List<String> objIds = new ArrayList<>();
+                                    objIds.add(roomId);
+                                    onDelete.onCallback(objIds);
+                                    return false;
                                 }
                             }
 
@@ -967,19 +963,10 @@ public class RethinkSyncClient {
             syncRoomFuture = syncRoomTimer
                     .scheduleAtFixedRate(
                             () -> {
-                                long minimumPongTime;
-                                synchronized (syncRoomTimerLock) {
-                                    minimumPongTime = (long) (System.nanoTime() - (connectionLostTimeout * 1.5));
-                                }
                                 if (socketClient == null || (!isRoomOwner) || (channelName == null)) {
                                     return;
                                 }
-                                if (syncRoomLastPong < minimumPongTime) {
-                                    socketClient.closeConnection(CloseFrame.ABNORMAL_CLOSE,
-                                            "The connection was closed because the other endpoint did not respond with a pong in time.");
-                                } else {
-                                    if (socketClient.isOpen()) {
-
+                                if (socketClient.isOpen()) {
                                     HashMap<Object, Object> params = new HashMap<>();
                                     params.put("action", SocketType.syncRoom.name());
                                     params.put("appId", appId);
@@ -990,9 +977,6 @@ public class RethinkSyncClient {
                                     String text = gson.toJson(params);
                                     Log.d(LOG_TAG, "WebSocketClient send message=" + text);
                                     socketClient.send(text);
-                                    } else {
-                                        Log.e(LOG_TAG, "Trying to ping a non open connection: {}");
-                                    }
                                 }
                             },
                             connectionLostTimeout,
