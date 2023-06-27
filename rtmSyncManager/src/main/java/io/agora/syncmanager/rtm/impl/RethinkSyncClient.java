@@ -357,7 +357,7 @@ public class RethinkSyncClient {
 
         for (String type : objTypes) {
             String requestId = UUIDUtil.uuid();
-            writeData(roomId, requestId, type, null, "", SocketType.unsubsribe, false, null);
+            writeData(roomId, requestId, type, null, "", SocketType.unsubscribe, false, null);
         }
     }
 
@@ -860,7 +860,7 @@ public class RethinkSyncClient {
 
         // remove subscribe data
         if (type == SocketType.subscribe
-                || type == SocketType.unsubsribe
+                || type == SocketType.unsubscribe
                 || type == SocketType.query) {
             socketMsg.remove("props");
         }
@@ -1050,7 +1050,7 @@ public class RethinkSyncClient {
     }
 
     enum SocketType {
-        send, subscribe, unsubsribe, query, deleteProp, ping, syncRoom, getRoomList, deleteRoom;
+        send, subscribe, unsubscribe, query, deleteProp, ping, syncRoom, getRoomList, deleteRoom;
     }
 
     static class Attribute implements IObject {
