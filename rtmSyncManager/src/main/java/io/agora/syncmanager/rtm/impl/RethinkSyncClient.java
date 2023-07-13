@@ -38,6 +38,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLParameters;
@@ -510,6 +511,8 @@ public class RethinkSyncClient {
         }
     }
 
+    ThreadPoolExecutor executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(5);
+
     private void connect(boolean lock) {
         disconnect();
 
@@ -626,15 +629,17 @@ public class RethinkSyncClient {
         socketClient.connect();
         Log.d(LOG_TAG, "WebSocketClient connect url=" + SOCKET_URL);
 
-        if (lock) {
-            try {
-                latch.await();
-            } catch (InterruptedException e) {
-                if (failureCallback != null) {
-                    failureCallback.onCallback(-11);
+        executor.execute(() -> {
+            if (lock) {
+                try {
+                    latch.await();
+                } catch (InterruptedException e) {
+                    if (failureCallback != null) {
+                        failureCallback.onCallback(-11);
+                    }
                 }
             }
-        }
+        });
     }
 
     private void disconnect() {
