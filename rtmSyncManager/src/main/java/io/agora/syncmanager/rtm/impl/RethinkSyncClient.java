@@ -6,6 +6,8 @@ import android.os.Looper;
 import android.text.TextUtils;
 import android.util.Log;
 
+import androidx.annotation.NonNull;
+
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.ToNumberPolicy;
@@ -43,7 +45,6 @@ import java.util.concurrent.TimeUnit;
 
 import javax.net.ssl.SSLParameters;
 
-import io.agora.common.annotation.NonNull;
 import io.agora.syncmanager.rtm.IObject;
 import io.agora.syncmanager.rtm.SyncManagerException;
 import io.agora.syncmanager.rtm.utils.UUIDUtil;

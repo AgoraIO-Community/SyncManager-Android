@@ -1,12 +1,12 @@
 package io.agora.syncmanager.rtm;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
 import java.util.HashMap;
 
-import io.agora.common.annotation.NonNull;
-import io.agora.common.annotation.Nullable;
-
 public interface ISyncManager {
-    void joinScene(@NonNull String sceneId,@Nullable Sync.JoinSceneCallback callback);
+    void joinScene(@NonNull String sceneId, @Nullable Sync.JoinSceneCallback callback);
 
     void joinScene(boolean isRoomOwner, boolean isMainRoom,  @NonNull String sceneId,@Nullable Sync.JoinSceneCallback callback);
 
