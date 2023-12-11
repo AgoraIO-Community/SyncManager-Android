@@ -51,7 +51,7 @@ import io.agora.syncmanager.rtm.utils.UUIDUtil;
 
 public class RethinkSyncClient {
     private static final String LOG_TAG = "RethinkSyncClient";
-    private static final String SOCKET_HOST_NAME = "rethinkdb-msg.bj2.agoralab.co/v2";
+    private static final String SOCKET_HOST_NAME = "rethinkdb-msg.shengwang.cn/v2";
     private static final String SOCKET_URL = "wss://" + SOCKET_HOST_NAME;
     private static final String GET_ROOM_LIST_OBJ_TYPE = "room";
     private static final String DELETE_ROOM_OBJ_TYPE = "deleteRoom";
