@@ -1,15 +1,12 @@
 package io.agora.syncmanager.rtm;
 
-import android.content.Context;
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
 
 import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
-import io.agora.common.annotation.NonNull;
-import io.agora.common.annotation.Nullable;
 import io.agora.syncmanager.rtm.impl.RethinkSyncImpl;
-import io.agora.syncmanager.rtm.impl.RtmSyncImpl;
 
 /**
  * 房间状态同步
