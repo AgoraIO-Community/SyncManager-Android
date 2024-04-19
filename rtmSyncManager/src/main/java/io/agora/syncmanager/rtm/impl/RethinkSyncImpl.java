@@ -311,7 +311,7 @@ public class RethinkSyncImpl implements ISyncManager {
     public void subscribeLog(Sync.LogCallback callback) {
         client.setLogCallback(
             ret -> {
-                if (callback != null) callback.onLogError(ret);
+                if (callback != null) callback.onLogInfo(ret);
             },
             ret -> {
                 if (callback != null) callback.onLogWarning(ret);
