@@ -116,6 +116,9 @@ public class RethinkSyncClient {
     private ICallback<Integer> successCallback;
     private ICallback<Integer> failureCallback;
     private ICallback<Integer> connectStateCallback;
+    private ICallback<String> logInfoCallback;
+    private ICallback<String> logWarningCallback;
+    private ICallback<String> logErrorCallback;
 
     public void init(String appId, String sceneName, ICallback<Integer> success, ICallback<Integer> failure) {
         this.appId = appId;
@@ -125,8 +128,14 @@ public class RethinkSyncClient {
         connect(true);
     }
 
-    public void setConnectStateCallback(ICallback<Integer> callback){
+    public void setConnectStateCallback(ICallback<Integer> callback) {
         connectStateCallback = callback;
+    }
+
+    public void setLogCallback(ICallback<String> logInfoCallback, ICallback<String> logWarningCallback, ICallback<String> logErrorCallback) {
+        this.logInfoCallback = logInfoCallback;
+        this.logWarningCallback = logWarningCallback;
+        this.logErrorCallback = logErrorCallback;
     }
 
     public void release() {
@@ -285,9 +294,9 @@ public class RethinkSyncClient {
                                 boolean isDeleted = data.optBoolean("isDeleted");
                                 String roomId = data.optString("roomId");
                                 if (isDeleted && !TextUtils.isEmpty(roomId) && onDelete != null) {
-                                    Log.d(LOG_TAG, "Room is deleted:" + roomId);
+                                    onLogInfo(LOG_TAG, "Room is deleted:" + roomId);
                                     if (Objects.equals(channelName, roomId)) {
-                                        Log.d(LOG_TAG, "Local Room is deleted:" + roomId);
+                                        onLogInfo(LOG_TAG, "Local Room is deleted:" + roomId);
                                         isRoomOwner = false;
                                     }
 
@@ -408,7 +417,7 @@ public class RethinkSyncClient {
             }
 
             String text = gson.toJson(socketMsg);
-            Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+            onLogInfo(LOG_TAG, "WebSocketClient send message=" + text);
             socketClient.send(text);
         } else {
             if (onError != null) {
@@ -454,7 +463,7 @@ public class RethinkSyncClient {
             }
 
             String text = gson.toJson(socketMsg);
-            Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+            onLogInfo(LOG_TAG, "WebSocketClient send message=" + text);
             socketClient.send(text);
         } else {
             if (onError != null) {
@@ -503,7 +512,7 @@ public class RethinkSyncClient {
             }
 
             String text = gson.toJson(socketMsg);
-            Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+            onLogInfo(LOG_TAG, "WebSocketClient send message=" + text);
             socketClient.send(text);
         } else {
             if (onError != null) {
@@ -536,9 +545,9 @@ public class RethinkSyncClient {
         socketClient = new WebSocketClient(msgUri) {
             @Override
             public void onOpen(ServerHandshake handshakedata) {
-                Log.d(LOG_TAG, "WebSocketClient onOpen status=" + handshakedata.getHttpStatus());
-                startHeartTimer(30);
-                startSyncRoom(15);
+                onLogInfo(LOG_TAG, "WebSocketClient onOpen status=" + handshakedata.getHttpStatus());
+                startHeartTimer(5);
+                //startSyncRoom(15);
 
                 synchronized (callbackHandlers) {
                     for (String key : callbackHandlers.keySet()) {
@@ -569,12 +578,12 @@ public class RethinkSyncClient {
 
             @Override
             public void onMessage(String message) {
-                Log.d(LOG_TAG, "WebSocketClient onMessage message=" + message);
+                onLogInfo(LOG_TAG, "WebSocketClient onMessage message=" + message);
 
                 try {
                     dealSocketMessage(message);
                 } catch (JSONException e) {
-                    Log.e(LOG_TAG, "", e);
+                    onLogError(LOG_TAG, e.getMessage());
                 }
             }
 
@@ -582,7 +591,7 @@ public class RethinkSyncClient {
             public void onClose(int code, String reason, boolean remote) {
                 stopHeartTimer();
                 stopSyncRoom();
-                Log.d(LOG_TAG, "onClose code=" + code + ", reason=" + reason + ", remote=" + remote);
+                onLogInfo(LOG_TAG, "onClose code=" + code + ", reason=" + reason + ", remote=" + remote);
                 if (code != CloseFrame.NORMAL) {
                     synchronized (reconnectHandler) {
                         connectRetryCount++;
@@ -597,7 +606,7 @@ public class RethinkSyncClient {
                         }
                         reconnectHandler.removeCallbacksAndMessages(null);
                         reconnectHandler.postDelayed(() -> {
-                            Log.d(LOG_TAG, "onClose reconnecting " + connectRetryCount + "...");
+                            onLogInfo(LOG_TAG, "onClose reconnecting " + connectRetryCount + "...");
                             RethinkSyncClient.this.connect(false);
                         }, CONNECT_CLOSE_RETRY_WAIT_MS);
                     }
@@ -612,7 +621,7 @@ public class RethinkSyncClient {
             public void onError(Exception ex) {
                 stopHeartTimer();
                 stopSyncRoom();
-                Log.e(LOG_TAG, ex.toString());
+                onLogError(LOG_TAG, ex.getMessage());
                 if (latch.getCount() != 0) {
                     latch.countDown();
                 }
@@ -628,7 +637,7 @@ public class RethinkSyncClient {
         // close webclient inner heart detect
         socketClient.setConnectionLostTimeout(-1);
         socketClient.connect();
-        Log.d(LOG_TAG, "WebSocketClient connect url=" + SOCKET_URL);
+        onLogInfo(LOG_TAG, "WebSocketClient connect url=" + SOCKET_URL);
 
         executor.execute(() -> {
             if (lock) {
@@ -881,7 +890,7 @@ public class RethinkSyncClient {
                 }
             }
             String text = gson.toJson(socketMsg);
-            Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+            onLogInfo(LOG_TAG, "WebSocketClient send message=" + text);
             socketClient.send(text);
 
             if (isAdd) {
@@ -934,10 +943,10 @@ public class RethinkSyncClient {
                                         params.put("requestId", UUID.randomUUID().toString());
 
                                         String text = gson.toJson(params);
-                                        Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+                                        onLogInfo(LOG_TAG, "WebSocketClient send message=" + text);
                                         socketClient.send(text);
                                     } else {
-                                        Log.e(LOG_TAG, "Trying to ping a non open connection: {}");
+                                        onLogError(LOG_TAG, "Trying to ping a non open connection: {}");
                                     }
                                 }
                             },
@@ -981,7 +990,7 @@ public class RethinkSyncClient {
                                     params.put("requestId", UUID.randomUUID().toString());
 
                                     String text = gson.toJson(params);
-                                    Log.d(LOG_TAG, "WebSocketClient send message=" + text);
+                                    onLogInfo(LOG_TAG, "WebSocketClient send message=" + text);
                                     socketClient.send(text);
                                 }
                             },
@@ -1000,6 +1009,24 @@ public class RethinkSyncClient {
         if (syncRoomFuture != null) {
             syncRoomFuture.cancel(false);
             syncRoomFuture = null;
+        }
+    }
+
+    private void onLogInfo(String tag, String message) {
+        if (logInfoCallback != null) {
+            logInfoCallback.onCallback(tag + ": " +message);
+        }
+    }
+
+    private void onLogWarning(String tag, String message) {
+        if (logWarningCallback != null) {
+            logWarningCallback.onCallback(tag + ": " +message);
+        }
+    }
+
+    private void onLogError(String tag, String message) {
+        if (logErrorCallback != null) {
+            logErrorCallback.onCallback(tag + ": " +message);
         }
     }
 

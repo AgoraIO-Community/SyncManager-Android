@@ -5,6 +5,7 @@ import androidx.annotation.Nullable;
 
 import java.util.HashMap;
 
+
 public interface ISyncManager {
     void joinScene(@NonNull String sceneId, @Nullable Sync.JoinSceneCallback callback);
 
@@ -51,6 +52,8 @@ public interface ISyncManager {
     void unsubscribeScene(SceneReference reference, Sync.EventListener listener);
 
     void subscribeConnectState(Sync.ConnectionStateCallback callback);
+
+    void subscribeLog(Sync.LogCallback callback);
 
     void destroy();
 

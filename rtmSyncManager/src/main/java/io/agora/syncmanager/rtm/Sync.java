@@ -127,7 +127,7 @@ public final class Sync {
     public void unsubscribeScene(SceneReference reference, Sync.EventListener listener) {
         mISyncManager.unsubscribeScene(reference, listener);
     }
-    
+
     public void subscribeConnectState(ConnectionStateCallback callback){
         mISyncManager.subscribeConnectState(callback);
     }
@@ -168,6 +168,12 @@ public final class Sync {
 
     public interface ConnectionStateCallback {
         void onConnectionStateChanged(ConnectionState state);
+    }
+
+    public interface LogCallback {
+        void onLogInfo(String message);
+        void onLogWarning(String message);
+        void onLogError(String message);
     }
 
     public enum ConnectionState {
