@@ -134,6 +134,10 @@ public final class Sync {
         mISyncManager.subscribeConnectState(callback);
     }
 
+    public void subscribeLog(LogCallback callback){
+        mISyncManager.subscribeLog(callback);
+    }
+
     public interface EventListener {
         void onCreated(IObject item);
 
