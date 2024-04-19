@@ -172,6 +172,12 @@ public final class Sync {
         void onConnectionStateChanged(ConnectionState state);
     }
 
+    public interface LogCallback {
+        void onLogInfo(String message);
+        void onLogWarning(String message);
+        void onLogError(String message);
+    }
+
     public enum ConnectionState {
         connecting, open, fail, closed
     }

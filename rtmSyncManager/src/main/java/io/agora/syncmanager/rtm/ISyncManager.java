@@ -53,6 +53,8 @@ public interface ISyncManager {
 
     void subscribeConnectState(Sync.ConnectionStateCallback callback);
 
+    void subscribeLog(Sync.LogCallback callback);
+
     void destroy();
 
 }
