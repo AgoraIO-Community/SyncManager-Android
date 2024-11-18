@@ -3,7 +3,6 @@ package io.agora.rtmsyncmanager.service.rtm
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import io.agora.rtm.ErrorInfo
 import io.agora.rtm.JoinChannelOptions
 import io.agora.rtm.MetadataItem
@@ -42,6 +41,9 @@ class AUIRtmManager constructor(
         rtmClient.setParameters("{\"rtm.msg.tx_timeout\": 3000}")
         rtmClient.setParameters("{\"rtm.metadata.api_timeout\": 3000}")
         rtmClient.setParameters("{\"rtm.metadata.api_max_retries\": 1}")
+
+        rtmClient.setParameters("{\"rtm.heartbeat_interval\": 1}")
+        rtmClient.setParameters("{\"rtm.lock_ttl_minimum_value\": 5}")
     }
 
     fun deInit() {
@@ -329,7 +331,7 @@ class AUIRtmManager constructor(
         lockName: String = kRTM_Referee_LockName,
         completion: (AUIRtmException?) -> Unit
     ) {
-        val storage = rtmClient.storage
+        val storage = rtmClient.storage ?: return
         val data = io.agora.rtm.Metadata()
         val item = kotlin.collections.ArrayList<MetadataItem>()
         removeKeys.forEach { it ->
@@ -406,7 +408,7 @@ class AUIRtmManager constructor(
         metadata: Map<String, String>,
         completion: (AUIRtmException?) -> Unit
     ) {
-        val storage = rtmClient.storage
+        val storage = rtmClient.storage ?: return
         val data = io.agora.rtm.Metadata()
         val item = kotlin.collections.ArrayList<MetadataItem>()
         metadata.forEach { entry ->
@@ -443,7 +445,7 @@ class AUIRtmManager constructor(
         channelType: RtmChannelType = RtmChannelType.MESSAGE,
         completion: (AUIRtmException?, io.agora.rtm.Metadata?) -> Unit
     ) {
-        val storage = rtmClient.storage
+        val storage = rtmClient.storage ?: return
         storage.getChannelMetadata(
             channelName,
             channelType,
@@ -471,7 +473,7 @@ class AUIRtmManager constructor(
         channelType: RtmChannelType = RtmChannelType.MESSAGE,
         completion: (AUIRtmException?, List<Map<String, String>>?) -> Unit
     ) {
-        val presence = rtmClient.presence
+        val presence = rtmClient.presence ?: return
         val options = PresenceOptions()
         options.includeUserId = true
         options.includeState = true
@@ -509,7 +511,7 @@ class AUIRtmManager constructor(
         attr: Map<String, Any>,
         completion: (AUIRtmException?) -> Unit
     ) {
-        val presence = rtmClient.presence
+        val presence = rtmClient.presence ?: return
         val items = mutableMapOf<String, String>()
         attr.forEach { entry ->
             items[entry.key] = entry.value.toString()
@@ -614,7 +616,7 @@ class AUIRtmManager constructor(
         channelName: String,
         channelType: RtmChannelType = RtmChannelType.MESSAGE,
         lockName: String = kRTM_Referee_LockName,
-        ttl: Long = 10,
+        ttl: Long = 5,
         completion: (AUIRtmException?) -> Unit
     ) {
         val lock = rtmClient.lock
@@ -761,8 +763,8 @@ class AUIRtmManager constructor(
 
     fun markReceiptFinished(uniqueId: String, error: AUIRtmException? ) {
         receiptTimeoutRun.remove(uniqueId)?.let {
-            it.closure.invoke(error)
             receiptHandler.removeCallbacks(it.runnable)
+            it.closure.invoke(error)
         }
     }
 

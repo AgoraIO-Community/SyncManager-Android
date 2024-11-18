@@ -52,7 +52,7 @@ class AUILogger(private val config: Config) {
     data class Config(
         val context: Context,
         val rootTag: String,
-        val logFileSize: Int = 2 * 1024 * 1024, // 2M，单位Byte
+        val logFileSize: Int = 2 * 1024 * 1024, // 2M，unit Byte
         val logFileName: String = "agora_auikit_${rootTag}_Android_${SimpleDateFormat("yyyy-MM-DD", Locale.US).format(Date())}_log".lowercase(),
         val logFolder: String = context.getExternalFilesDir("")!!.absolutePath,
         val threadInfoEnable: Boolean = true,

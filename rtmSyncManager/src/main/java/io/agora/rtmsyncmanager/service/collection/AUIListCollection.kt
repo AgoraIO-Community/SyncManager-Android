@@ -20,7 +20,12 @@ class AUIListCollection(
             channelName = channelName,
             completion = { error, metaData ->
                 if (error != null) {
-                    callback?.invoke(AUICollectionException.ErrorCode.rtm.toException(error.code, "rtm getMetadata error: ${error.reason}"), null)
+                    callback?.invoke(
+                        AUICollectionException.ErrorCode.rtm.toException(
+                            error.code,
+                            "rtm getMetadata error: ${error.reason}"
+                        ), null
+                    )
                     return@getMetadata
                 }
                 val data = metaData?.items?.find { it.key == observeKey }
@@ -343,10 +348,11 @@ class AUIListCollection(
         filter: List<Map<String, Any>>?,
         callback: ((error: AUICollectionException?) -> Unit)?
     ) {
-        //如果filter空，默认无条件写入，如果有filter，判断条件
-        if (filter != null &&
-            filter.isNotEmpty() &&
-            AUICollectionUtils.getItemIndexes(currentList, filter)?.isNotEmpty() == true) {
+        // If the filter is empty, write without any conditions by default.
+        // If there is a filter, evaluate the condition.
+        if (!filter.isNullOrEmpty() &&
+            AUICollectionUtils.getItemIndexes(currentList, filter)?.isNotEmpty() == true
+        ) {
             callback?.invoke(
                 AUICollectionException.ErrorCode.filterFoundSame.toException()
             )
@@ -378,10 +384,7 @@ class AUIListCollection(
             return
         }
 
-        rtmManager.setBatchMetadata(
-            channelName,
-            metadata = mapOf(Pair(observeKey, data)),
-        ) { e ->
+        setBatchMetadata(data) { e ->
             if (e != null) {
                 callback?.invoke(
                     AUICollectionException.ErrorCode.rtm.toException(e.code, "rtm setBatchMetadata error: ${e.reason}")
@@ -440,10 +443,7 @@ class AUIListCollection(
             return
         }
 
-        rtmManager.setBatchMetadata(
-            channelName,
-            metadata = mapOf(Pair(observeKey, data)),
-        ) { e ->
+        setBatchMetadata(data) { e ->
             if (e != null) {
                 callback?.invoke(
                     AUICollectionException.ErrorCode.rtm.toException(e.code, "rtm setBatchMetadata error: ${e.reason}")
@@ -498,10 +498,7 @@ class AUIListCollection(
             return
         }
 
-        rtmManager.setBatchMetadata(
-            channelName,
-            metadata = mapOf(Pair(observeKey, data)),
-        ) { e ->
+        setBatchMetadata(data) { e ->
             if (e != null) {
                 callback?.invoke(
                     AUICollectionException.ErrorCode.rtm.toException(e.code, "rtm setBatchMetadata error: ${e.reason}")
@@ -553,10 +550,7 @@ class AUIListCollection(
             return
         }
 
-        rtmManager.setBatchMetadata(
-            channelName,
-            metadata = mapOf(Pair(observeKey, data)),
-        ) { e ->
+        setBatchMetadata(data) { e ->
             if (e != null) {
                 callback?.invoke(
                     AUICollectionException.ErrorCode.rtm.toException(e.code, "rtm setBatchMetadata error: ${e.reason}")
@@ -638,12 +632,14 @@ class AUIListCollection(
             return
         }
 
-        rtmManager.setBatchMetadata(
-            channelName,
-            metadata = mapOf(Pair(observeKey, data)),
-        ) { e ->
+        setBatchMetadata(data) { e ->
             if (e != null) {
-                callback?.invoke(AUICollectionException.ErrorCode.rtm.toException(e.code, "rtm setBatchMetadata error: ${e.reason}"))
+                callback?.invoke(
+                    AUICollectionException.ErrorCode.rtm.toException(
+                        e.code,
+                        "rtm setBatchMetadata error: ${e.reason}"
+                    )
+                )
             } else {
                 callback?.invoke(null)
             }
@@ -665,13 +661,24 @@ class AUIListCollection(
         )
     }
 
+    override fun syncLocalMetaData() {
+        val data = GsonTools.beanToString(currentList) ?: return
+        if (retryMetadata) {
+            setBatchMetadata(data) { e ->
+                Log.d("ListCollection", "syncLocalMetaData error:$e")
+            }
+        }
+    }
+
     override fun onAttributeChanged(value: Any) {
         val strValue = value as? String ?: ""
         val list = GsonTools.toBean<List<Map<String, Any>>>(
             strValue,
             object : TypeToken<List<Map<String, Any>>>() {}.type
         ) ?: emptyList()
-        //如果是仲裁者，不更新，因为本地已经修改了，否则这里收到的消息可能是老的数据，例如update1->update2->resp1->resp2，那么resp1的数据比update2要老，会造成ui上短暂的回滚
+        // If it’s the arbitrator, don’t update, because the local data has already been modified.
+        // Otherwise, the message received here might be outdated.
+        // For example, update1 -> update2 -> resp1 -> resp2, in which case the data from resp1 is older than update2, causing a brief rollback in the UI.
         if (!isArbiter()) {
             currentList = list
         }
@@ -690,7 +697,7 @@ class AUIListCollection(
         }
 
         if (messageModel.messageType == AUICollectionMessageTypeReceipt) {
-            Log.d("huit", "message:$message")
+            Log.d("onMessageReceive", "message:$message")
             // receipt message from arbiter
             val collectionError = GsonTools.toBean(
                 GsonTools.beanToString(messageModel.payload?.data),
